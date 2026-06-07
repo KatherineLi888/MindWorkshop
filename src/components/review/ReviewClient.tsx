@@ -27,6 +27,7 @@ import type {
   ReviewRecord,
 } from "@/lib/review/types";
 import { formatDate } from "@/lib/utils";
+import { Suspense } from "react";
 
 const KIND_LABELS: Record<ReviewKind, string> = {
   period: "周期复盘",
@@ -34,7 +35,8 @@ const KIND_LABELS: Record<ReviewKind, string> = {
   event: "事件复盘",
 };
 
-export function ReviewClient() {
+// 内部组件，使用 useSearchParams
+function ReviewContent() {
   const searchParams = useSearchParams();
   const [records, setRecords] = useState<ReviewRecord[]>([]);
   const [kind, setKind] = useState<ReviewKind>("period");
@@ -401,5 +403,14 @@ export function ReviewClient() {
         </ul>
       </section>
     </div>
+  );
+}
+
+// 外层包裹 Suspense，修复部署报错
+export function ReviewClient() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center">Loading...</div>}>
+      <ReviewContent />
+    </Suspense>
   );
 }
