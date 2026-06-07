@@ -1,10 +1,13 @@
-import { ThinkingMethodsManager } from "@/components/thinking/ThinkingMethodsManager";
+import { Suspense } from "react";
 import { ThinkingMethodsProvider } from "@/components/thinking/ThinkingMethodsContext";
+import { ThinkingMethodsManager } from "@/components/thinking/ThinkingMethodsManager";
 
 export default function ThinkingMethodsPage() {
   return (
-    <ThinkingMethodsProvider>
-      <ThinkingMethodsManager />
-    </ThinkingMethodsProvider>
+    <Suspense fallback={<div>加载中...</div>}>
+      <ThinkingMethodsProvider>
+        <ThinkingMethodsManager />
+      </ThinkingMethodsProvider>
+    </Suspense>
   );
 }
