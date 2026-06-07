@@ -49,6 +49,9 @@ export default function RegisterPage() {
         });
       }
 
+      const { onAccountLogin } = await import("@/lib/migrate/local-to-cloud");
+      await onAccountLogin();
+
       router.push("/decisions");
       router.refresh();
     } catch (ex) {

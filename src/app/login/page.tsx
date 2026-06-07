@@ -41,6 +41,8 @@ function LoginForm() {
         return;
       }
       await syncSessionToCookies(data.session);
+      const { onAccountLogin } = await import("@/lib/migrate/local-to-cloud");
+      await onAccountLogin();
       router.push(next);
       router.refresh();
     } catch (ex) {

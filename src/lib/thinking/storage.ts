@@ -1,5 +1,10 @@
 import { loadLocal, saveLocal, LOCAL_KEYS } from "@/lib/local-store";
 import { moveThinkingSessionToTrash } from "@/lib/trash/storage";
+import {
+  deleteThoughtSessionFromCloud,
+  syncAllThoughtSessionsToCloud,
+  syncThoughtSessionToCloud,
+} from "./cloud-sync";
 import type { ThoughtNode, ThoughtSession } from "./types";
 
 function normalizeSession(session: ThoughtSession): ThoughtSession {
@@ -48,6 +53,7 @@ export function loadThoughtSessions(): ThoughtSession[] {
 
 export function saveThoughtSessions(sessions: ThoughtSession[]) {
   saveLocal(LOCAL_KEYS.thinking, sessions);
+  void syncAllThoughtSessionsToCloud(sessions);
 }
 
 export function createThoughtSession(
@@ -76,7 +82,9 @@ export function createThoughtSession(
     ],
   };
   const all = loadThoughtSessions();
-  saveThoughtSessions([session, ...all]);
+  const next = [session, ...all];
+  saveLocal(LOCAL_KEYS.thinking, next);
+  void syncThoughtSessionToCloud(session);
   return session;
 }
 
@@ -96,7 +104,8 @@ export function deleteThoughtSession(id: string): ThoughtSession[] {
   const target = all.find((s) => s.id === id);
   if (target) moveThinkingSessionToTrash(target);
   const next = all.filter((s) => s.id !== id);
-  saveThoughtSessions(next);
+  saveLocal(LOCAL_KEYS.thinking, next);
+  void deleteThoughtSessionFromCloud(id);
   return next;
 }
 

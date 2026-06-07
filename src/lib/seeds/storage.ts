@@ -1,5 +1,6 @@
 import { loadLocal, saveLocal } from "@/lib/local-store";
 import { flowEntityKey } from "@/lib/flow/types";
+import { saveSeedsWithCloudSync, syncSeedEntityMapToCloud } from "./cloud-sync";
 import { partitionSeeds, spotlightGrowing } from "./classify";
 import type { IdeaSeed, SeedLifeEvent, SeedSummary } from "./types";
 
@@ -14,7 +15,7 @@ export function loadSeeds(): IdeaSeed[] {
 }
 
 function saveSeeds(seeds: IdeaSeed[]) {
-  saveLocal(SEEDS_KEY, seeds);
+  saveSeedsWithCloudSync(seeds);
 }
 
 export function loadSeedEntityMap(): Record<string, string> {
@@ -40,7 +41,8 @@ export function bindEntityToSeed(
 ) {
   const map = loadSeedEntityMap();
   map[flowEntityKey(entityType, entityId)] = seedId;
-  saveSeedEntityMap(map);
+  saveLocal(MAP_KEY, map);
+  void syncSeedEntityMapToCloud();
 }
 
 export function upsertSeed(seed: IdeaSeed): IdeaSeed {

@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AiAssistant } from "@/components/ai/AiAssistant";
 import { AUTH_ENABLED } from "@/lib/config";
+import { isCloudEnabled } from "@/lib/supabase/client";
 
 const navLinkClass = (active: boolean) =>
   cn(
@@ -47,6 +48,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isCloudEnabled()) return;
+    void import("@/lib/migrate/local-to-cloud").then((m) => m.hydrateFromCloud());
   }, []);
 
   const toggleCollapsed = () => {
@@ -228,7 +234,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-16 md:pb-0">
         {!AUTH_ENABLED && (
           <p className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-1.5 text-center text-[10px] text-slate-500">
-            本地模式 · 数据存于本机 · 登录稍后开放
+            本地模式 · 数据存于本机 ·{" "}
+            <Link href="/login" className="text-[var(--primary)] underline">
+              登录
+            </Link>{" "}
+            可开启云端同步
+          </p>
+        )}
+        {AUTH_ENABLED && isCloudEnabled() && (
+          <p className="shrink-0 border-b border-emerald-200/60 bg-emerald-50/50 px-4 py-1.5 text-center text-[10px] text-emerald-700">
+            云端模式 · 数据已与账号同步
+          </p>
+        )}
+        {AUTH_ENABLED && !isCloudEnabled() && (
+          <p className="shrink-0 border-b border-amber-200/60 bg-amber-50/50 px-4 py-1.5 text-center text-[10px] text-amber-700">
+            登录已启用，请在 .env.local 配置 Supabase 变量以开启云端同步
           </p>
         )}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3 md:hidden">

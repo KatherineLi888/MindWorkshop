@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
-import { themeInitScript } from "@/lib/theme/theme-init-script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,12 +24,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN" className="h-full">
-      <body className="min-h-full antialiased">
-        <Script id="workshop-theme-init" strategy="beforeInteractive">
-          {themeInitScript}
-        </Script>
-        {children}
-      </body>
+      <body className="min-h-full antialiased">{children}</body>
     </html>
   );
 }

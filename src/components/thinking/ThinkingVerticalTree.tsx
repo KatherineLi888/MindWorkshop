@@ -75,6 +75,30 @@ const LABEL_TEXT_GAP = 4;
 const QA_DIVIDER_H = 1;
 const QA_DIVIDER_PAD = 3;
 
+type LayoutUnit = {
+  kind: "topic" | "qa";
+  question: ThoughtNode;
+  answer?: ThoughtNode;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  depth: number;
+  isRoot: boolean;
+  maxChars: number;
+};
+
+type LayoutEdge = { x1: number; y1: number; x2: number; y2: number };
+
+type ColumnLayout = {
+  units: LayoutUnit[];
+  edges: LayoutEdge[];
+  width: number;
+  height: number;
+  anchorBottom: number;
+  anchorX: number;
+};
+
 function clampZoom(scale: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale));
 }
@@ -100,6 +124,7 @@ function clampTreePan(
   viewW: number,
   viewH: number
 ) {
+  if (viewW <= 0 || viewH <= 0) return pan;
   let { x, y } = pan;
   const rootCx = rootUnit.x + rootUnit.w / 2;
   const rootY = rootUnit.y;
@@ -132,30 +157,6 @@ function clampTreePan(
 
   return { x, y };
 }
-
-type LayoutUnit = {
-  kind: "topic" | "qa";
-  question: ThoughtNode;
-  answer?: ThoughtNode;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  depth: number;
-  isRoot: boolean;
-  maxChars: number;
-};
-
-type LayoutEdge = { x1: number; y1: number; x2: number; y2: number };
-
-type ColumnLayout = {
-  units: LayoutUnit[];
-  edges: LayoutEdge[];
-  width: number;
-  height: number;
-  anchorBottom: number;
-  anchorX: number;
-};
 
 function useTreeLayoutConfig(): TreeLayoutConfig {
   const [cfg, setCfg] = useState(() => treeLayoutConfig(loadThinkingLayoutPrefs()));
@@ -1174,15 +1175,15 @@ function TreeCanvas({
             重置
           </button>
         </div>
-      <div
-        className="relative"
-        style={{
-          width: canvasSize.w,
-          height: canvasSize.h,
-          minWidth: "100%",
-          minHeight: "100%",
-        }}
-      >
+        <div
+          className="relative"
+          style={{
+            width: canvasSize.w,
+            height: canvasSize.h,
+            minWidth: "100%",
+            minHeight: "100%",
+          }}
+        >
         <div
           className="absolute left-0 top-0"
           style={{

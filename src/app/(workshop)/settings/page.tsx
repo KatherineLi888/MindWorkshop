@@ -28,6 +28,8 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [trash, setTrash] = useState<TrashItem[]>([]);
   const [purgeTarget, setPurgeTarget] = useState<TrashItem | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
 
   const refreshTrash = () => setTrash(loadRecentlyDeleted());
 
@@ -101,6 +103,24 @@ export default function SettingsPage() {
     refreshTrash();
   };
 
+  const handleCloudSync = async (force = false) => {
+    if (!isCloudEnabled()) return;
+    setSyncing(true);
+    setSyncMsg("");
+    try {
+      const { migrateLocalToCloud, hydrateFromCloud } = await import(
+        "@/lib/migrate/local-to-cloud"
+      );
+      const result = await migrateLocalToCloud(force);
+      await hydrateFromCloud();
+      setSyncMsg(result.message);
+    } catch (ex) {
+      setSyncMsg(ex instanceof Error ? ex.message : "同步失败");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-lg space-y-5 p-4 lg:p-6">
       <h1 className="text-lg font-semibold">设置</h1>
@@ -110,10 +130,12 @@ export default function SettingsPage() {
 
       <Card className="bg-[var(--background)]">
         <h2 className="text-sm font-medium text-slate-800">账号管理</h2>
-        {!AUTH_ENABLED ? (
+        {!isCloudEnabled() ? (
           <div className="mt-2 space-y-2">
             <p className="text-xs text-slate-500">
-              当前为本地模式，数据保存在本浏览器。登录与云端同步稍后开放。
+              {AUTH_ENABLED
+                ? "登录已启用，但 Supabase 未配置。请在 .env.local 填入 URL 与 Key 后重启开发服务器。"
+                : "当前为本地模式，数据保存在本浏览器。开启云端同步需配置环境变量。"}
             </p>
             <div className="flex flex-wrap gap-2">
               <Link href="/login">
@@ -136,20 +158,39 @@ export default function SettingsPage() {
                 {email}
               </p>
             )}
-            <Button variant="ghost" size="sm" onClick={logout}>
-              退出登录
-            </Button>
+            <p className="text-xs text-slate-500">
+              你的决策、目标、思考、种子等数据已与该账号绑定并同步到云端。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={syncing}
+                onClick={() => handleCloudSync(true)}
+              >
+                {syncing ? "同步中…" : "重新上传本机数据"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={logout}>
+                退出登录
+              </Button>
+            </div>
+            {syncMsg && (
+              <p className="text-xs text-emerald-600">{syncMsg}</p>
+            )}
           </div>
         )}
       </Card>
 
-      {!AUTH_ENABLED && (
+      {!isCloudEnabled() && (
         <Card className="border-[#F59E0B]/30 bg-amber-50/40">
-          <p className="text-sm text-[#1E293B]">本地模式提示</p>
+          <p className="text-sm text-[#1E293B]">开启云端同步</p>
           <p className="mt-1 text-xs text-slate-500">
-            需要云端同步时，可在{" "}
-            <code className="text-[10px]">src/lib/config.ts</code> 将{" "}
-            <code className="text-[10px]">AUTH_ENABLED</code> 设为 true。
+            复制 <code className="text-[10px]">.env.example</code> 为{" "}
+            <code className="text-[10px]">.env.local</code>，设置{" "}
+            <code className="text-[10px]">NEXT_PUBLIC_AUTH_ENABLED=true</code>{" "}
+            并填入 Supabase 项目 URL 与 anon Key，然后在 Supabase SQL Editor
+            执行 <code className="text-[10px]">supabase/migrations/</code>{" "}
+            下全部迁移文件。
           </p>
         </Card>
       )}

@@ -1,0 +1,8 @@
+# Netlify · Next.js 部署配置
+# 文档：https://docs.netlify.com/frameworks/next-js/overview/
+
+[build]
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

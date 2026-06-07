@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import {
   WORKSHOP_THEME_CHANGED,
   applyWorkshopTheme,
@@ -14,9 +14,11 @@ export function WorkshopThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyWorkshopTheme(loadWorkshopTheme());
+  }, []);
 
+  useEffect(() => {
     const onThemeChange = (e: Event) => {
       const detail = (e as CustomEvent<WorkshopThemePrefs>).detail;
       if (detail) applyWorkshopTheme(detail);
