@@ -5,6 +5,7 @@ import {
   ContextMenu,
   type ContextMenuItem,
 } from "@/app/canvas/ContextMenu";
+import { ConfirmDialog } from "@/app/canvas/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { useThinkingMethods } from "@/components/thinking/ThinkingMethodsContext";
@@ -18,6 +19,8 @@ import {
 } from "@/components/thinking/ThinkingMethodPicker";
 import type { MethodPickerTarget } from "@/components/thinking/ThinkingMethodPicker";
 import type { AddQuestionMeta } from "@/lib/thinking/prompt-draft";
+import { resolveQuestionPlaceholder } from "@/lib/thinking/question-placeholder";
+import { useNodeLongPress } from "@/components/thinking/use-node-long-press";
 import {
   getChildNodes,
   getOrderedChildNodes,
@@ -72,6 +75,7 @@ type FlowContext = {
   selectedIds: Set<string>;
   onToggleSelect: (id: string, additive: boolean) => void;
   onContextMenuNode: (e: React.MouseEvent, nodeId: string) => void;
+  onLongPressNode: (nodeId: string, x: number, y: number) => void;
   onOpenChildPicker: (nodeId: string) => void;
   relativeDepth: (nodeId: string) => number;
   placedConclusionIds: Set<string>;
@@ -422,6 +426,7 @@ function EditableBox({
   session,
   onSaveContent,
   onContextMenu,
+  onLongPressAt,
   topic,
   relativeDepth,
   selected,
@@ -432,6 +437,7 @@ function EditableBox({
   session: ThoughtSession;
   onSaveContent: (nodeId: string, content: string) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  onLongPressAt?: (x: number, y: number) => void;
   topic?: boolean;
   relativeDepth?: number;
   selected?: boolean;
@@ -441,6 +447,7 @@ function EditableBox({
   const { getMethod } = useThinkingMethods();
   const appearance = resolveNodeAppearance(node, getMethod);
   const [draft, setDraft] = useState(node.content);
+  const longPress = useNodeLongPress((x, y) => onLongPressAt?.(x, y));
 
   useEffect(() => {
     setDraft(node.content);
@@ -489,6 +496,7 @@ function EditableBox({
         fontFamily: THINK_FONT_FAMILY,
       }}
       onContextMenu={onContextMenu}
+      {...(onLongPressAt ? longPress : {})}
       onClick={(e) => {
         if (selectable && onToggleSelect && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
@@ -545,9 +553,11 @@ function EditableBox({
         placeholder={
           isTopic
             ? "思考主题…"
-            : node.type === "question" || node.type === "conclusion"
-              ? "问题…"
-              : "写下回答…"
+            : node.type === "question"
+              ? resolveQuestionPlaceholder(node, getMethod)
+              : node.type === "conclusion"
+                ? "输入结论…"
+                : "写下回答…"
         }
       />
     </div>
@@ -763,6 +773,7 @@ function InlineCrossMerge({
         onSaveContent={ctx.onSaveContent}
         relativeDepth={ctx.relativeDepth(conclusion.id)}
         onContextMenu={(e) => ctx.onContextMenuNode(e, conclusion.id)}
+        onLongPressAt={(x, y) => ctx.onLongPressNode(conclusion.id, x, y)}
       />
       <BranchTail
         mountNode={conclusion}
@@ -819,6 +830,7 @@ function VerticalConclusionBand({
         onSaveContent={ctx.onSaveContent}
         relativeDepth={ctx.relativeDepth(conclusion.id)}
         onContextMenu={(e) => ctx.onContextMenuNode(e, conclusion.id)}
+        onLongPressAt={(x, y) => ctx.onLongPressNode(conclusion.id, x, y)}
       />
       <BranchTail
         mountNode={conclusion}
@@ -933,6 +945,7 @@ function ConclusionBand({
           onSaveContent={ctx.onSaveContent}
           relativeDepth={ctx.relativeDepth(conclusion.id)}
           onContextMenu={(e) => ctx.onContextMenuNode(e, conclusion.id)}
+          onLongPressAt={(x, y) => ctx.onLongPressNode(conclusion.id, x, y)}
         />
         <BranchTail
           mountNode={conclusion}
@@ -1116,6 +1129,7 @@ function QuestionColumn({
           selected={ctx.selectedIds.has(node.id)}
           onToggleSelect={(additive) => ctx.onToggleSelect(node.id, additive)}
           onContextMenu={(e) => ctx.onContextMenuNode(e, node.id)}
+          onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
         />
       </NodeWithSideAdd>
       {answer ? (
@@ -1127,6 +1141,7 @@ function QuestionColumn({
               onSaveContent={ctx.onSaveContent}
               relativeDepth={ctx.relativeDepth(answer.id)}
               onContextMenu={(e) => ctx.onContextMenuNode(e, answer.id)}
+              onLongPressAt={(x, y) => ctx.onLongPressNode(answer.id, x, y)}
             />
           </NodeWithSideAdd>
           <BranchTail
@@ -1234,6 +1249,7 @@ function FocusSingleView({
               onSaveContent={ctx.onSaveContent}
               relativeDepth={ctx.relativeDepth(node.id)}
               onContextMenu={(e) => ctx.onContextMenuNode(e, node.id)}
+              onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
             />
             <BranchTail
               mountNode={node}
@@ -1250,6 +1266,7 @@ function FocusSingleView({
               session={ctx.session}
               onSaveContent={ctx.onSaveContent}
               onContextMenu={(e) => ctx.onContextMenuNode(e, node.id)}
+              onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
               topic
               relativeDepth={0}
             />
@@ -1438,6 +1455,7 @@ export function ThinkingTextFlow({
     y: number;
     nodeId: string;
   } | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   if (!root) {
     return (
@@ -1494,6 +1512,10 @@ export function ThinkingTextFlow({
     setContextMenu({ x: e.clientX, y: e.clientY, nodeId });
   };
 
+  const openContextMenuAt = (nodeId: string, x: number, y: number) => {
+    setContextMenu({ x, y, nodeId });
+  };
+
   const handleMerge = () => {
     const resolved = resolveMergeSelection(session, selectedIds);
     if (!resolved.ok) {
@@ -1522,6 +1544,7 @@ export function ThinkingTextFlow({
     selectedIds,
     onToggleSelect: toggleSelect,
     onContextMenuNode: openContextMenu,
+    onLongPressNode: openContextMenuAt,
     onOpenChildPicker: openChildPicker,
     relativeDepth: (nodeId) =>
       relativeDepthFromView(session.nodes, nodeId, viewRootId, rootId),
@@ -1621,6 +1644,7 @@ export function ThinkingTextFlow({
                 session={session}
                 onSaveContent={onSaveContent}
                 onContextMenu={(e) => openContextMenu(e, root.id)}
+                onLongPressAt={(x, y) => openContextMenuAt(root.id, x, y)}
                 topic
                 relativeDepth={0}
               />
@@ -1661,19 +1685,34 @@ export function ThinkingTextFlow({
             onToggleLayout: onToggleChildLayout,
             onMerge: handleMerge,
             onDelete: () => {
-              onDeleteNode(contextMenu.nodeId);
-              if (focusIds?.includes(contextMenu.nodeId)) {
-                setFocusIds(null);
-              }
-              setSelectedIds((prev) => {
-                const next = new Set(prev);
-                next.delete(contextMenu.nodeId);
-                return next;
-              });
+              setDeleteTargetId(contextMenu.nodeId);
+              setContextMenu(null);
             },
           })}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTargetId}
+        title="删除节点"
+        message="确定删除此节点及其子分支吗？此操作不可撤销。"
+        confirmLabel="删除"
+        danger
+        onConfirm={() => {
+          if (!deleteTargetId) return;
+          onDeleteNode(deleteTargetId);
+          if (focusIds?.includes(deleteTargetId)) {
+            setFocusIds(null);
+          }
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(deleteTargetId);
+            return next;
+          });
+          setDeleteTargetId(null);
+        }}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 }

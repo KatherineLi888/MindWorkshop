@@ -8,7 +8,6 @@ import {
   FLOW_NAV_ITEMS,
   HOME_NAV,
   KNOWLEDGE_NAV_GROUP,
-  NAV_ITEMS,
   ROOT_NAV_GROUP,
   STATS_NAV,
   isArchiveNavActive,
@@ -19,6 +18,8 @@ import {
 } from "./nav-config";
 import { cn } from "@/lib/utils";
 import { AiAssistant } from "@/components/ai/AiAssistant";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { CLOUD_SYNCED_EVENT } from "@/lib/cloud-sync-events";
 import { AUTH_ENABLED } from "@/lib/config";
 import { isCloudEnabled } from "@/lib/supabase/client";
 
@@ -28,12 +29,6 @@ const navLinkClass = (active: boolean) =>
     active
       ? "bg-[var(--background)] text-[var(--primary)] shadow-sm ring-1 ring-[var(--border)]"
       : "text-slate-600 hover:bg-[var(--background)]"
-  );
-
-const mobileNavLinkClass = (active: boolean) =>
-  cn(
-    "flex min-w-[4.5rem] shrink-0 flex-col items-center rounded-lg px-2 py-1.5 text-[10px]",
-    active ? "bg-[var(--surface)] text-[var(--primary)]" : "text-slate-500"
   );
 
 const SIDEBAR_COLLAPSED_KEY = "workshop-sidebar-collapsed";
@@ -52,7 +47,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isCloudEnabled()) return;
-    void import("@/lib/migrate/local-to-cloud").then((m) => m.hydrateFromCloud());
+    const sync = () =>
+      import("@/lib/migrate/local-to-cloud").then((m) => {
+        void m.hydrateFromCloud().then(() => {
+          window.dispatchEvent(new Event(CLOUD_SYNCED_EVENT));
+        });
+      });
+    void sync();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   const toggleCollapsed = () => {
@@ -231,7 +237,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-16 md:pb-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
         {!AUTH_ENABLED && (
           <p className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-1.5 text-center text-[10px] text-slate-500">
             本地模式 · 数据存于本机 ·{" "}
@@ -262,41 +268,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--background)] md:hidden">
-        <div className="flex gap-1 overflow-x-auto px-2 py-2 scrollbar-none">
-          <Link
-            href={HOME_NAV.href}
-            className={mobileNavLinkClass(isHomeNavActive(pathname))}
-          >
-            <span className="text-base leading-none">{HOME_NAV.icon}</span>
-            {HOME_NAV.label}
-          </Link>
-          <Link
-            href={STATS_NAV.href}
-            className={mobileNavLinkClass(isStatsNavActive(pathname))}
-          >
-            <span className="text-base leading-none">{STATS_NAV.icon}</span>
-            {STATS_NAV.label}
-          </Link>
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={mobileNavLinkClass(isNavItemActive(pathname, item.href))}
-            >
-              <span className="text-base leading-none">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
-          <Link
-            href={ARCHIVE_NAV.href}
-            className={mobileNavLinkClass(isArchiveNavActive(pathname))}
-          >
-            <span className="text-base leading-none">{ARCHIVE_NAV.icon}</span>
-            归档
-          </Link>
-        </div>
-      </nav>
+      <MobileBottomNav />
 
       <AiAssistant />
     </div>

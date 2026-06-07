@@ -4,6 +4,8 @@ export type AddQuestionMeta = {
   selectStart?: number;
   selectEnd?: number;
   skipFocus?: boolean;
+  /** 空问题节点上的灰色占位提示 */
+  placeholderHint?: string;
 };
 
 export type QuestionEditFocus = {

@@ -13,6 +13,8 @@ export type ThoughtNode = {
   type: ThoughtNodeType;
   content: string;
   method?: ThinkingMethodId;
+  /** 空内容时显示的灰色占位提示 */
+  placeholderHint?: string;
   parentIds: string[];
   marksProgress: boolean;
   /** 用户自定义强调：红字或浅色底 */

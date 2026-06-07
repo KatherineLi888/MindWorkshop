@@ -12,6 +12,8 @@ import {
   type CSSProperties,
 } from "react";
 import { ContextMenu } from "@/app/canvas/ContextMenu";
+import { ConfirmDialog } from "@/app/canvas/ConfirmDialog";
+import { useNodeLongPress } from "@/components/thinking/use-node-long-press";
 import {
   ThinkingMethodPickerDialog,
   type MethodPickerTarget,
@@ -33,6 +35,7 @@ import {
   type TreeLayoutConfig,
 } from "@/lib/thinking/layout-prefs";
 import type { AddQuestionMeta, QuestionEditFocus } from "@/lib/thinking/prompt-draft";
+import { resolveQuestionPlaceholder } from "@/lib/thinking/question-placeholder";
 import { getOrderedChildNodes } from "@/lib/thinking/text-board";
 import type { ThoughtNode, ThoughtSession } from "@/lib/thinking/types";
 import { cn } from "@/lib/utils";
@@ -666,6 +669,7 @@ function TreeUnitBox({
   questionEditFocus,
   onQuestionEditFocusConsumed,
   onContextMenu,
+  onLongPressAt,
 }: {
   unit: LayoutUnit;
   session: ThoughtSession;
@@ -675,8 +679,10 @@ function TreeUnitBox({
   questionEditFocus?: QuestionEditFocus | null;
   onQuestionEditFocusConsumed?: () => void;
   onContextMenu: (e: ReactMouseEvent, nodeId: string) => void;
+  onLongPressAt?: (x: number, y: number) => void;
 }) {
   const { getMethod } = useThinkingMethods();
+  const longPress = useNodeLongPress((x, y) => onLongPressAt?.(x, y));
   const [qDraft, setQDraft] = useState(unit.question.content);
   const [aDraft, setADraft] = useState(unit.answer?.content ?? "");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -762,6 +768,7 @@ function TreeUnitBox({
         fontFamily: THINK_FONT_FAMILY,
       }}
       onContextMenu={(e) => onContextMenu(e, unit.question.id)}
+      {...(onLongPressAt ? longPress : {})}
     >
       {methodDef && (
         <span
@@ -804,7 +811,7 @@ function TreeUnitBox({
               value={qDraft}
               onChange={setQDraft}
               onBlur={commitQ}
-              placeholder="问题…"
+              placeholder={resolveQuestionPlaceholder(unit.question, getMethod)}
               cfg={cfg}
               bodyWidth={bodyW}
               maxChars={maxChars}
@@ -892,6 +899,7 @@ function TreeCanvas({
   const [pickerTarget, setPickerTarget] = useState<MethodPickerTarget | null>(
     null
   );
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const isSessionRoot = viewRootId === sessionRootId;
 
@@ -1039,6 +1047,10 @@ function TreeCanvas({
     },
     []
   );
+
+  const openContextMenuAt = useCallback((nodeId: string, x: number, y: number) => {
+    setContextMenu({ x, y, nodeId });
+  }, []);
 
   const contextNode = contextMenu
     ? session.nodes.find((n) => n.id === contextMenu.nodeId)
@@ -1223,6 +1235,9 @@ function TreeCanvas({
                 questionEditFocus={questionEditFocus}
                 onQuestionEditFocusConsumed={onQuestionEditFocusConsumed}
                 onContextMenu={handleNodeContextMenu}
+                onLongPressAt={(x, y) =>
+                  openContextMenuAt(unit.question.id, x, y)
+                }
               />
             ))}
           </div>
@@ -1289,10 +1304,8 @@ function TreeCanvas({
                     label: "删除此节点",
                     danger: true,
                     onClick: () => {
-                      onDeleteNode(contextMenu.nodeId);
-                      if (viewRootId === contextMenu.nodeId) {
-                        onViewRootChange(sessionRootId);
-                      }
+                      setDeleteTargetId(contextMenu.nodeId);
+                      setContextMenu(null);
                     },
                   },
                 ]
@@ -1300,6 +1313,23 @@ function TreeCanvas({
           ]}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTargetId}
+        title="删除节点"
+        message="确定删除此节点及其子分支吗？此操作不可撤销。"
+        confirmLabel="删除"
+        danger
+        onConfirm={() => {
+          if (!deleteTargetId) return;
+          onDeleteNode(deleteTargetId);
+          if (viewRootId === deleteTargetId) {
+            onViewRootChange(sessionRootId);
+          }
+          setDeleteTargetId(null);
+        }}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </>
   );
 }

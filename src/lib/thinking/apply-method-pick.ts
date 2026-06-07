@@ -1,10 +1,10 @@
 import type { ThinkingMethodDef, ThinkingMethodId } from "@/lib/thinking/methods";
+import type { AddQuestionMeta } from "@/lib/thinking/prompt-draft";
 import {
-  buildEditablePromptDraft,
-  dualQuestionDrafts,
-  multilineQuestionLines,
-  type AddQuestionMeta,
-} from "@/lib/thinking/prompt-draft";
+  dualQuestionPlaceholderHints,
+  multilinePlaceholderHints,
+  patternToPlaceholderHint,
+} from "@/lib/thinking/question-placeholder";
 
 export type AddQuestionFn = (
   parentId: string,
@@ -13,7 +13,7 @@ export type AddQuestionFn = (
   meta?: AddQuestionMeta
 ) => void;
 
-/** 选择方法后立即生成问题草稿并提交 */
+/** 选择方法后创建空问题节点，占位提示由 placeholderHint 提供 */
 export function applyMethodPick(
   parentId: string,
   methodId: ThinkingMethodId,
@@ -21,32 +21,26 @@ export function applyMethodPick(
   onAdd: AddQuestionFn
 ) {
   if (method.inputKind === "dual") {
-    const [a, b] = dualQuestionDrafts();
-    onAdd(parentId, methodId, a.text, {
-      selectStart: a.selectStart,
-      selectEnd: a.selectEnd,
+    dualQuestionPlaceholderHints().forEach((hint, i) => {
+      onAdd(parentId, methodId, "", {
+        skipFocus: i > 0,
+        placeholderHint: hint,
+      });
     });
-    onAdd(parentId, methodId, b.text, { skipFocus: true });
     return;
   }
 
   if (method.inputKind === "multiline") {
-    const lines = multilineQuestionLines(method);
-    lines.forEach((line, i) => {
-      onAdd(
-        parentId,
-        methodId,
-        line,
-        i === 0
-          ? { selectStart: 0, selectEnd: line.length }
-          : { skipFocus: true }
-      );
+    multilinePlaceholderHints(method).forEach((hint, i) => {
+      onAdd(parentId, methodId, "", {
+        skipFocus: i > 0,
+        placeholderHint: hint,
+      });
     });
     return;
   }
 
-  const { text, selectStart, selectEnd } = buildEditablePromptDraft(
-    method.promptPattern
-  );
-  onAdd(parentId, methodId, text, { selectStart, selectEnd });
+  onAdd(parentId, methodId, "", {
+    placeholderHint: patternToPlaceholderHint(method.promptPattern),
+  });
 }

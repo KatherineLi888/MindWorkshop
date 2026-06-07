@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { CLOUD_SYNCED_EVENT } from "@/lib/cloud-sync-events";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FlowListContextMenu } from "@/components/flow/FlowListContextMenu";
 import {
@@ -79,7 +80,21 @@ export function GoalsClient() {
 
   useEffect(() => {
     load();
-    if (!isCloudEnabled()) return;
+    const onSync = () => void load();
+    window.addEventListener(CLOUD_SYNCED_EVENT, onSync);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && isCloudEnabled()) {
+        void load();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    if (!isCloudEnabled()) {
+      return () => {
+        window.removeEventListener(CLOUD_SYNCED_EVENT, onSync);
+        document.removeEventListener("visibilitychange", onVisible);
+      };
+    }
     const supabase = createClient();
     const ch = supabase
       .channel("goals")
@@ -88,6 +103,8 @@ export function GoalsClient() {
       )
       .subscribe();
     return () => {
+      window.removeEventListener(CLOUD_SYNCED_EVENT, onSync);
+      document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(ch);
     };
   }, [load]);

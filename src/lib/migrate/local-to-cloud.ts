@@ -1,5 +1,6 @@
 import { STORAGE_KEY, type VaultState } from "@/app/canvas/types";
 import { loadLocal, LOCAL_KEYS, saveLocal } from "@/lib/local-store";
+import { dispatchCloudSynced } from "@/lib/cloud-sync-events";
 import { createClient, isCloudEnabled } from "@/lib/supabase/client";
 import type { ThoughtSession } from "@/lib/thinking/types";
 import type { IdeaSeed } from "@/lib/seeds/types";
@@ -327,6 +328,48 @@ export async function hydrateFromCloud(): Promise<void> {
 
   const userId = user.id;
 
+  const { data: goals } = await supabase
+    .from("goals")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (goals?.length) {
+    saveLocal(LOCAL_KEYS.goals, goals);
+  }
+
+  const { data: decisions } = await supabase
+    .from("decisions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (decisions?.length) {
+    saveLocal(LOCAL_KEYS.decisions, decisions);
+  }
+
+  const { data: graphNodes } = await supabase
+    .from("graph_nodes")
+    .select("*")
+    .eq("user_id", userId);
+  if (graphNodes?.length) {
+    saveLocal(LOCAL_KEYS.graphNodes, graphNodes);
+  }
+
+  const { data: graphEdges } = await supabase
+    .from("graph_edges")
+    .select("*")
+    .eq("user_id", userId);
+  if (graphEdges?.length) {
+    saveLocal(LOCAL_KEYS.graphEdges, graphEdges);
+  }
+
+  const { data: links } = await supabase
+    .from("entity_links")
+    .select("*")
+    .eq("user_id", userId);
+  if (links?.length) {
+    saveLocal(LOCAL_KEYS.entityLinks, links);
+  }
+
   const { data: thinking } = await supabase
     .from("thinking_sessions")
     .select("*")
@@ -395,6 +438,8 @@ export async function hydrateFromCloud(): Promise<void> {
       /* ignore */
     }
   }
+
+  dispatchCloudSynced();
 }
 
 /** 登录后：先上传本机数据，再拉取云端合并 */

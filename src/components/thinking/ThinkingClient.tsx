@@ -7,7 +7,6 @@ import { ThinkingMethodLibraryDialog } from "@/components/thinking/ThinkingMetho
 import { ThinkingSeedBadge } from "@/components/thinking/ThinkingSeedBadge";
 import { ThinkingVerticalTree } from "@/components/thinking/ThinkingVerticalTree";
 import { useThinkingMethods } from "@/components/thinking/ThinkingMethodsContext";
-import { ThinkingNodeInspector } from "@/components/thinking/ThinkingNodeInspector";
 import { ThinkingTextFlow } from "@/components/thinking/ThinkingTextFlow";
 import type { PendingMethod } from "@/components/thinking/thinking-editor-types";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -19,7 +18,13 @@ import { ConfirmDialog } from "@/app/canvas/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { fillOrCreateAnswer } from "@/lib/thinking/answer-node";
 import { applyMethodPick } from "@/lib/thinking/apply-method-pick";
+import {
+  dualQuestionPlaceholderHints,
+  multilinePlaceholderHints,
+  patternToPlaceholderHint,
+} from "@/lib/thinking/question-placeholder";
 import type { ThinkingMethodId } from "@/lib/thinking/methods";
 import { resolveChildMountParentId } from "@/lib/thinking/mount-parent";
 import type { AddQuestionMeta, QuestionEditFocus } from "@/lib/thinking/prompt-draft";
@@ -33,11 +38,7 @@ import {
   upsertNode,
 } from "@/lib/thinking/storage";
 import type { ThoughtNodeEmphasis } from "@/lib/thinking/node-appearance";
-import {
-  getChildNodes,
-  moveChildToIndex,
-  toggleTextChildLayout,
-} from "@/lib/thinking/text-board";
+import { moveChildToIndex, toggleTextChildLayout } from "@/lib/thinking/text-board";
 import type {
   ThinkingEditorView,
   ThoughtNode,
@@ -214,85 +215,41 @@ export function ThinkingClient() {
   const addQuestionNode = () => {
     if (!session || !pendingMethod) return;
     const m = getMethod(pendingMethod.methodId);
+    const parent = pendingMethod.fromNodeId;
 
     if (m.inputKind === "dual") {
-      const anchor = anchorText();
-      const now = new Date().toISOString();
-      const parent = pendingMethod.fromNodeId;
-      appendNodes([
-        {
-          id: crypto.randomUUID(),
-          type: "question",
-          method: pendingMethod.methodId,
-          content: `利：选择「${anchor}」的好处？`,
-          parentIds: [parent],
-          marksProgress: false,
-          createdAt: now,
-        },
-        {
-          id: crypto.randomUUID(),
-          type: "question",
-          method: pendingMethod.methodId,
-          content: `弊：选择「${anchor}」的代价？`,
-          parentIds: [parent],
-          marksProgress: false,
-          createdAt: now,
-        },
-      ]);
+      dualQuestionPlaceholderHints().forEach((hint, i) => {
+        submitQuestionUnderParent(parent, pendingMethod.methodId, "", {
+          skipFocus: i > 0,
+          placeholderHint: hint,
+        });
+      });
+      setPendingMethod(null);
       return;
     }
 
     if (m.inputKind === "multiline") {
-      const lines = pendingMethod.draft
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-      if (lines.length === 0) return;
-      const now = new Date().toISOString();
-      const parent = pendingMethod.fromNodeId;
-      appendNodes(
-        lines.map((line) => ({
-          id: crypto.randomUUID(),
-          type: "question" as const,
-          method: pendingMethod.methodId,
-          content: line,
-          parentIds: [parent],
-          marksProgress: false,
-          createdAt: now,
-        }))
-      );
+      multilinePlaceholderHints(m).forEach((hint, i) => {
+        submitQuestionUnderParent(parent, pendingMethod.methodId, "", {
+          skipFocus: i > 0,
+          placeholderHint: hint,
+        });
+      });
+      setPendingMethod(null);
       return;
     }
 
-    const text = pendingMethod.draft.trim();
-    if (!text) return;
-    appendNodes([
-      {
-        id: crypto.randomUUID(),
-        type: "question",
-        method: pendingMethod.methodId,
-        content: text,
-        parentIds: [pendingMethod.fromNodeId],
-        marksProgress: false,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    submitQuestionUnderParent(parent, pendingMethod.methodId, "", {
+      placeholderHint: patternToPlaceholderHint(m.promptPattern),
+    });
+    setPendingMethod(null);
   };
 
   const addAnswerNode = () => {
     if (!session || !actionNode || actionNode.type !== "question") return;
     const text = answerDraft.trim();
     if (!text) return;
-    appendNodes([
-      {
-        id: crypto.randomUUID(),
-        type: "answer",
-        content: text,
-        parentIds: [actionNode.id],
-        marksProgress: false,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    persist(fillOrCreateAnswer(session, actionNode.id, text, false));
     setAnswerDraft("");
   };
 
@@ -416,7 +373,6 @@ export function ThinkingClient() {
     const now = new Date().toISOString();
 
     const text = draft.trim();
-    if (!text) return;
 
     const questionId = crypto.randomUUID();
     const answerId = crypto.randomUUID();
@@ -427,6 +383,7 @@ export function ThinkingClient() {
         type: "question",
         method: methodId,
         content: text,
+        placeholderHint: meta?.placeholderHint,
         parentIds: [parentId],
         marksProgress: false,
         createdAt: now,
@@ -449,9 +406,7 @@ export function ThinkingClient() {
     setSelectedIds(new Set([questionId]));
     setEditContent(text);
     if (!meta?.skipFocus) {
-      const start = meta?.selectStart ?? text.length;
-      const end = meta?.selectEnd ?? text.length;
-      setQuestionEditFocus({ nodeId: questionId, selectStart: start, selectEnd: end });
+      setQuestionEditFocus({ nodeId: questionId, selectStart: 0, selectEnd: 0 });
     }
   };
 
@@ -461,20 +416,7 @@ export function ThinkingClient() {
     progress: boolean
   ) => {
     if (!session) return;
-    const existing = getChildNodes(session.nodes, questionId).some(
-      (c) => c.type === "answer"
-    );
-    if (existing) return;
-    appendNodes([
-      {
-        id: crypto.randomUUID(),
-        type: "answer",
-        content: text.trim(),
-        parentIds: [questionId],
-        marksProgress: progress,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    persist(fillOrCreateAnswer(session, questionId, text, progress));
   };
 
   const submitSiblingQuestion = (
@@ -506,37 +448,6 @@ export function ThinkingClient() {
     };
     persist(upsertNode(session, newNode));
   };
-
-  const inspector = (
-    <ThinkingNodeInspector
-      bar
-      actionNode={actionNode}
-      selectedCount={selectedIds.size}
-      editContent={editContent}
-      onEditContent={setEditContent}
-      onSaveContent={saveNodeContent}
-      pendingMethod={pendingMethod}
-      pendingDef={pendingDef}
-      onStartMethod={startMethod}
-      onPendingDraft={(draft) =>
-        pendingMethod &&
-        setPendingMethod({ ...pendingMethod, draft })
-      }
-      onCancelPending={() => setPendingMethod(null)}
-      onAddQuestion={addQuestionNode}
-      answerDraft={answerDraft}
-      onAnswerDraft={setAnswerDraft}
-      onSaveAnswer={addAnswerNode}
-      mergeDraft={mergeDraft}
-      onMergeDraft={setMergeDraft}
-      onMerge={addMergeNode}
-      onSetEmphasis={
-        actionNode && selectedIds.size === 1
-          ? (emphasis) => setNodeEmphasis(actionNode.id, emphasis)
-          : undefined
-      }
-    />
-  );
 
   if (!activeId || !session) {
     return (
@@ -667,7 +578,7 @@ export function ThinkingClient() {
 
   return (
     <div
-      className={`flex h-[calc(100dvh-4.5rem)] min-h-[480px] flex-col md:h-[calc(100dvh-2rem)] ${
+      className={`flex h-[calc(100dvh-5.5rem-env(safe-area-inset-bottom))] min-h-[480px] flex-col md:h-[calc(100dvh-2rem)] ${
         editorView === "text" || editorView === "tree"
           ? "px-1 py-2 md:px-2"
           : "p-4 lg:p-6"
@@ -736,14 +647,14 @@ export function ThinkingClient() {
       />
 
       {editorView === "split" ? (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden md:flex-row">
           <ThinkingMapViewport
             nodes={session.nodes}
             rootId={rootId}
             childOrder={session.childOrder}
             selectedIds={selectedIds}
             onSelect={selectNode}
-            className="min-h-0 flex-1"
+            className="min-h-[38%] shrink-0 md:min-h-0 md:flex-1"
             lastFocusedId={lastFocusedId}
             editorHud={{
               actionNode,
@@ -766,7 +677,25 @@ export function ThinkingClient() {
             onSetEmphasis={setNodeEmphasis}
           />
 
-          <Card className="shrink-0 bg-white px-3 py-2.5">{inspector}</Card>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-[var(--border)] md:w-[44%] md:shrink-0 md:border-l md:pl-2">
+            <p className="mb-1 shrink-0 px-1 text-[10px] font-medium text-slate-400">
+              文字脉络（与画布同步）
+            </p>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <ThinkingTextFlow
+                session={session}
+                rootId={rootId}
+                onSaveContent={updateNodeContent}
+                onAddQuestion={submitQuestionUnderParent}
+                onAddSiblingQuestion={submitSiblingQuestion}
+                onAddAnswer={submitAnswerUnderQuestion}
+                onMergeNodes={submitMergeUnderText}
+                onToggleChildLayout={handleToggleTextLayout}
+                onMoveChildToIndex={handleMoveChildToIndex}
+                onDeleteNode={handleDeleteNode}
+              />
+            </div>
+          </div>
         </div>
       ) : editorView === "tree" ? (
         <div className="mt-2 flex min-h-0 flex-1 flex-col">
