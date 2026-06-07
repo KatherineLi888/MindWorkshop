@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1e293b;
+  --surface: #f8fafc;
+  --border: #e2e8f0;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-soft: #eff6ff;
+  --primary-muted: #dbeafe;
+  --primary-ring: rgba(59, 130, 246, 0.35);
+  --primary-ring-soft: rgba(59, 130, 246, 0.15);
+  --accent: #f59e0b;
+  --accent-soft: #fef3c7;
+  --card: var(--surface);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes pulse-border {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--primary-ring);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--primary-ring-soft);
+  }
+}
+.node-ongoing {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes widget-jiggle {
+  0%,
+  100% {
+    transform: rotate(-0.4deg);
+  }
+  50% {
+    transform: rotate(0.4deg);
+  }
+}
+.widget-edit-jiggle {
+  animation: widget-jiggle 0.35s ease-in-out infinite;
+}

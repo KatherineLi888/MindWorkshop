@@ -1,0 +1,205 @@
+import { loadLocal, saveLocal, LOCAL_KEYS } from "@/lib/local-store";
+import { ensureEntityHasSeed } from "@/lib/seeds/ensure";
+import { createClient, isCloudEnabled } from "@/lib/supabase/client";
+import {
+  DEFAULT_GOAL_EXECUTION,
+  normalizeExecution,
+  computeGoalProgress,
+  type GoalExecution,
+} from "@/lib/goals/types";
+import type { GoalRow, SmartFields } from "@/types/database";
+
+export type GoalWithMeta = GoalRow & {
+  execution: GoalExecution;
+  smart_versions?: SmartFields[];
+};
+
+export function toGoalWithMeta(row: GoalRow): GoalWithMeta {
+  const execution = normalizeExecution(row.execution);
+  const progress = computeGoalProgress(row.progress, execution);
+  const versions = (row as GoalRow & { smart_versions?: SmartFields[] })
+    .smart_versions;
+  return {
+    ...row,
+    progress,
+    execution,
+    smart_versions: versions,
+  };
+}
+
+export async function loadAllGoals(): Promise<GoalWithMeta[]> {
+  if (!isCloudEnabled()) {
+    return loadLocal<GoalRow[]>(LOCAL_KEYS.goals, []).map(toGoalWithMeta);
+  }
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("goals")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return ((data as GoalRow[]) ?? []).map(toGoalWithMeta);
+}
+
+export async function loadGoalSmartVersions(
+  goalId: string
+): Promise<SmartFields[]> {
+  if (!isCloudEnabled()) {
+    const goals = loadLocal<(GoalRow & { smart_versions?: SmartFields[] })[]>(
+      LOCAL_KEYS.goals,
+      []
+    );
+    return goals.find((x) => x.id === goalId)?.smart_versions ?? [];
+  }
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("goal_smart_versions")
+    .select("smart_data, created_at")
+    .eq("goal_id", goalId)
+    .order("created_at", { ascending: true });
+  return (data ?? []).map((r) => r.smart_data as SmartFields);
+}
+
+export async function saveGoal(goal: GoalWithMeta): Promise<GoalWithMeta[]> {
+  const execution = normalizeExecution(goal.execution);
+  const progress = computeGoalProgress(goal.progress, execution);
+  const updated_at = new Date().toISOString();
+  const payload = {
+    ...goal,
+    execution,
+    progress,
+    updated_at,
+  };
+
+  if (!isCloudEnabled()) {
+    const prev = loadLocal<(GoalRow & { smart_versions?: SmartFields[] })[]>(
+      LOCAL_KEYS.goals,
+      []
+    );
+    const row = {
+      title: payload.title,
+      goal_type: payload.goal_type,
+      progress: payload.progress,
+      smart_current: payload.smart_current,
+      execution: payload.execution,
+      smart_versions: goal.smart_versions,
+      updated_at,
+    };
+    const idx = prev.findIndex((g) => g.id === goal.id);
+    const next =
+      idx >= 0
+        ? prev.map((g, i) => (i === idx ? { ...g, ...row } : g))
+        : [{ ...goal, ...row } as GoalRow & { smart_versions?: SmartFields[] }, ...prev];
+    saveLocal(LOCAL_KEYS.goals, next);
+    return next.map(toGoalWithMeta);
+  }
+
+  const supabase = createClient();
+  await supabase
+    .from("goals")
+    .update({
+      title: payload.title,
+      goal_type: payload.goal_type,
+      progress: payload.progress,
+      smart_current: payload.smart_current,
+      execution: payload.execution,
+      updated_at,
+    })
+    .eq("id", goal.id);
+
+  return loadAllGoals();
+}
+
+const EMPTY_SMART: SmartFields = {
+  specific: "",
+  measurable: "",
+  achievable: "",
+  relevant: "",
+  timeBound: "",
+};
+
+export function buildPendingGoal(title: string): GoalWithMeta {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    user_id: "local",
+    title: title.trim(),
+    goal_type: "pending",
+    progress: 0,
+    smart_current: { ...EMPTY_SMART, specific: title.trim() },
+    execution: { ...DEFAULT_GOAL_EXECUTION },
+    smart_versions: [],
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+export function buildNewGoal(input: {
+  title: string;
+  goal_type: "near" | "long";
+  smart: SmartFields;
+  versions: SmartFields[];
+}): GoalWithMeta {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    user_id: "local",
+    title: input.title,
+    goal_type: input.goal_type,
+    progress: 0,
+    smart_current: input.smart,
+    execution: { ...DEFAULT_GOAL_EXECUTION },
+    smart_versions: input.versions,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+export async function persistNewGoal(goal: GoalWithMeta): Promise<void> {
+  if (!isCloudEnabled()) {
+    const prev = loadLocal<GoalRow[]>(LOCAL_KEYS.goals, []);
+    saveLocal(LOCAL_KEYS.goals, [
+      {
+        ...goal,
+        execution: goal.execution,
+        smart_versions: goal.smart_versions ?? [goal.smart_current],
+      } as GoalRow & { smart_versions?: SmartFields[] },
+      ...prev,
+    ]);
+    ensureEntityHasSeed({
+      entityType: "goal",
+      entityId: goal.id,
+      title: goal.title,
+      stage: "goals",
+    });
+    return;
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: inserted } = await supabase
+    .from("goals")
+    .insert({
+      user_id: user.id,
+      title: goal.title,
+      goal_type: goal.goal_type,
+      smart_current: goal.smart_current,
+      progress: 0,
+      execution: goal.execution,
+    })
+    .select("id")
+    .single();
+
+  const versions = goal.smart_versions ?? [goal.smart_current];
+  if (inserted) {
+    for (const v of versions) {
+      await supabase.from("goal_smart_versions").insert({
+        goal_id: inserted.id,
+        user_id: user.id,
+        smart_data: v,
+      });
+    }
+  }
+}
