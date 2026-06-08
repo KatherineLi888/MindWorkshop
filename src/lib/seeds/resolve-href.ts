@@ -1,32 +1,49 @@
+import { appendReturnTo } from "@/lib/navigation/return-to";
+
 /** 种子生命事件中实体对应的跳转链接 */
 export function seedEntityHref(
   entityType: string,
-  entityId: string
+  entityId: string,
+  returnTo?: string
 ): string | null {
+  let href: string | null = null;
   switch (entityType) {
     case "thinking_session":
-      return `/thinking?session=${entityId}`;
+      href = `/thinking?session=${entityId}`;
+      break;
     case "decision":
-      return "/decisions";
+      href = `/decisions?detail=${entityId}`;
+      break;
     case "goal":
-      return `/goals?detail=${entityId}`;
+      href = `/goals?detail=${entityId}`;
+      break;
     case "graph_node":
-      return "/graph";
+      href = "/graph";
+      break;
     case "model_application":
-      return "/models/apply";
+      href = "/models/apply";
+      break;
     case "thinking_model":
-      return `/models/library?selected=${entityId}`;
+      href = `/models/library?selected=${entityId}`;
+      break;
     case "theory":
-      return `/theories/${entityId}`;
+      href = `/theories/${entityId}`;
+      break;
     case "triage":
-      return "/home/records";
+      href = "/home/records";
+      break;
     case "review_record":
-      return "/review";
+      href = "/review";
+      break;
     case "canvas_document":
-      return "/canvas";
+      href = "/canvas";
+      break;
     case "inbox_manual":
-      return "/inbox";
+      href = "/inbox";
+      break;
     default:
       return null;
   }
+  if (!href) return null;
+  return returnTo ? appendReturnTo(href, returnTo) : href;
 }

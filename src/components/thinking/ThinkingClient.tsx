@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ThinkingMapViewport } from "@/components/thinking/ThinkingMapViewport";
 import { ThinkingMethodLibraryDialog } from "@/components/thinking/ThinkingMethodLibraryDialog";
 import { ThinkingSeedBadge } from "@/components/thinking/ThinkingSeedBadge";
 import { ThinkingVerticalTree } from "@/components/thinking/ThinkingVerticalTree";
 import { useThinkingMethods } from "@/components/thinking/ThinkingMethodsContext";
+import { ThinkingNodeEditPanel } from "@/components/thinking/ThinkingNodeEditPanel";
+import { ThinkingRootEditor } from "@/components/thinking/ThinkingRootEditor";
 import { ThinkingTextFlow } from "@/components/thinking/ThinkingTextFlow";
 import type { PendingMethod } from "@/components/thinking/thinking-editor-types";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -18,7 +21,6 @@ import { ConfirmDialog } from "@/app/canvas/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { fillOrCreateAnswer } from "@/lib/thinking/answer-node";
 import { applyMethodPick } from "@/lib/thinking/apply-method-pick";
 import {
   dualQuestionPlaceholderHints,
@@ -32,6 +34,7 @@ import {
   createThoughtSession,
   deleteThoughtNode,
   deleteThoughtSession,
+  fillOrCreateAnswer,
   getRootId,
   loadThoughtSessions,
   updateThoughtSession,
@@ -452,13 +455,20 @@ export function ThinkingClient() {
   if (!activeId || !session) {
     return (
       <div
-        className="mx-auto max-w-2xl space-y-5 p-4 lg:p-6"
+        className="mx-auto max-w-2xl space-y-4 p-4 lg:p-5"
         onClick={() => setContextMenu(null)}
       >
         <PageHeader
           title="思考"
           description="追问、拆分、利弊、反推等方法展开思路；从左到右形成脉络，可多选合并。"
-          subModule={{ label: "方法库", href: "/thinking/methods" }}
+          actions={
+            <Link
+              href="/thinking/methods"
+              className="rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+            >
+              方法库
+            </Link>
+          }
         />
 
         <Card className="bg-white">
@@ -491,7 +501,7 @@ export function ThinkingClient() {
               <Card className="bg-white p-0">
                 <button
                   type="button"
-                  className="w-full px-4 py-3 text-left transition-colors hover:bg-[#FAFBFC]"
+                  className="w-full px-4 py-2.5 text-left transition-colors hover:bg-[#FAFBFC]"
                   onClick={() => openSession(s)}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -507,19 +517,17 @@ export function ThinkingClient() {
                     </span>
                   </div>
 
-                  {summary.conclusion && (
-                    <p className="mt-1.5 line-clamp-2 text-xs text-slate-600">
-                      <span className="font-medium text-slate-500">结论 · </span>
-                      {summary.conclusion}
-                    </p>
-                  )}
-
-                  {summary.currentQuestion && (
-                    <p className="mt-1 line-clamp-2 text-xs text-[var(--primary)]">
-                      <span className="font-medium text-[#2563EB]/70">待答 · </span>
+                  {summary.currentQuestion ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                      <span className="text-slate-500">待答 · </span>
                       {summary.currentQuestion}
                     </p>
-                  )}
+                  ) : summary.conclusion ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                      <span className="text-slate-500">结论 · </span>
+                      {summary.conclusion}
+                    </p>
+                  ) : null}
 
                   <p className="mt-2 text-[10px] text-slate-400">
                     {s.nodes.length} 个节点 · {formatDate(s.updatedAt)}
@@ -576,12 +584,58 @@ export function ThinkingClient() {
     );
   }
 
+  const isFlowView = editorView === "text" || editorView === "tree";
+  const rootNode = session.nodes.find((n) => n.id === rootId) ?? null;
+
+  const handleFlowNodeClick = (nodeId: string) => {
+    selectNode(nodeId, false);
+  };
+
+  const clearFlowPanel = () => {
+    setSelectedIds(new Set());
+    setLastFocusedId("");
+    setEditContent("");
+    setPendingMethod(null);
+    setAnswerDraft("");
+  };
+
+  const flowPanelProps = {
+    actionNode,
+    selectedCount: selectedIds.size,
+    editContent,
+    onEditContent: setEditContent,
+    onSaveContent: saveNodeContent,
+    pendingMethod,
+    pendingDef,
+    onStartMethod: startMethod,
+    onPendingDraft: (draft: string) =>
+      pendingMethod &&
+      setPendingMethod({ ...pendingMethod, draft }),
+    onCancelPending: () => setPendingMethod(null),
+    onAddQuestion: addQuestionNode,
+    answerDraft,
+    onAnswerDraft: setAnswerDraft,
+    onSaveAnswer: addAnswerNode,
+    mergeDraft,
+    onMergeDraft: setMergeDraft,
+    onMerge: addMergeNode,
+    onDeleteNode: actionNode
+      ? () => handleDeleteNode(actionNode.id)
+      : undefined,
+    onClose: clearFlowPanel,
+  };
+
+  const viewTabClass = (active: boolean) =>
+    `rounded-md px-2.5 py-1 transition ${
+      active
+        ? "bg-[var(--primary)] text-white"
+        : "text-slate-600 hover:bg-slate-50"
+    }`;
+
   return (
     <div
-      className={`flex h-[calc(100dvh-5.5rem-env(safe-area-inset-bottom))] min-h-[480px] flex-col md:h-[calc(100dvh-2rem)] ${
-        editorView === "text" || editorView === "tree"
-          ? "px-1 py-2 md:px-2"
-          : "p-4 lg:p-6"
+      className={`flex min-h-[480px] flex-col md:h-[calc(100dvh-2rem)] ${
+        isFlowView ? "px-1 py-1.5 md:px-2" : "p-3 lg:p-4"
       }`}
     >
       <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -598,7 +652,43 @@ export function ThinkingClient() {
             sourceTriageId={triageId}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex rounded-lg border border-[var(--border)] bg-[var(--background)] p-0.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() =>
+                setEditorView(editorView === "split" ? "text" : editorView)
+              }
+              className={viewTabClass(isFlowView)}
+            >
+              脉络
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorView("split")}
+              className={viewTabClass(editorView === "split")}
+            >
+              画布+文字
+            </button>
+          </div>
+          {isFlowView && (
+            <div className="flex rounded-lg border border-[var(--border)] bg-[var(--background)] p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setEditorView("text")}
+                className={viewTabClass(editorView === "text")}
+              >
+                卡片视角
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditorView("tree")}
+                className={viewTabClass(editorView === "tree")}
+              >
+                导图视角
+              </button>
+            </div>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -607,37 +697,6 @@ export function ThinkingClient() {
           >
             方法库
           </Button>
-          <div className="flex rounded-lg border border-[var(--border)] bg-[var(--background)] p-0.5 text-[11px]">
-            {(
-              [
-                { id: "flow" as const, label: "脉络" },
-                { id: "split" as const, label: "画布+文字" },
-              ] as const
-            ).map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() =>
-                  setEditorView(
-                    v.id === "flow"
-                      ? editorView === "text"
-                        ? "text"
-                        : "tree"
-                      : "split"
-                  )
-                }
-                className={`rounded-md px-2.5 py-1 transition ${
-                  (v.id === "flow" &&
-                    (editorView === "text" || editorView === "tree")) ||
-                  editorView === v.id
-                    ? "bg-[var(--primary)] text-white"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -647,14 +706,14 @@ export function ThinkingClient() {
       />
 
       {editorView === "split" ? (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden md:flex-row">
+        <div className="mt-1.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden md:flex-row">
           <ThinkingMapViewport
             nodes={session.nodes}
             rootId={rootId}
             childOrder={session.childOrder}
             selectedIds={selectedIds}
             onSelect={selectNode}
-            className="min-h-[38%] shrink-0 md:min-h-0 md:flex-1"
+            className="min-h-[36%] shrink-0 md:min-h-0 md:flex-1"
             lastFocusedId={lastFocusedId}
             editorHud={{
               actionNode,
@@ -677,11 +736,38 @@ export function ThinkingClient() {
             onSetEmphasis={setNodeEmphasis}
           />
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-[var(--border)] md:w-[44%] md:shrink-0 md:border-l md:pl-2">
-            <p className="mb-1 shrink-0 px-1 text-[10px] font-medium text-slate-400">
-              文字脉络（与画布同步）
-            </p>
-            <div className="min-h-0 flex-1 overflow-auto">
+          <div className="flex min-h-0 min-w-0 flex-col justify-center border-[var(--border)] md:w-[30%] md:shrink-0 md:border-l md:pl-2">
+            {rootNode && (
+              <ThinkingRootEditor
+                node={rootNode}
+                onSave={updateNodeContent}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-1 flex min-h-0 flex-1 flex-col md:flex-row">
+          <div className="min-h-0 flex-1 overflow-auto">
+            {editorView === "tree" ? (
+              <ThinkingVerticalTree
+                session={session}
+                rootId={rootId}
+                fullscreen={treeFullscreen}
+                onToggleFullscreen={() => setTreeFullscreen((v) => !v)}
+                onSaveContent={updateNodeContent}
+                onAddQuestion={submitQuestionUnderParent}
+                onAddSiblingQuestion={submitSiblingQuestion}
+                onAddAnswer={submitAnswerUnderQuestion}
+                onDeleteNode={handleDeleteNode}
+                useEditPanel
+                activeNodeId={lastFocusedId || null}
+                onNodeClick={handleFlowNodeClick}
+                questionEditFocus={questionEditFocus}
+                onQuestionEditFocusConsumed={() =>
+                  setQuestionEditFocus(null)
+                }
+              />
+            ) : (
               <ThinkingTextFlow
                 session={session}
                 rootId={rootId}
@@ -693,69 +779,23 @@ export function ThinkingClient() {
                 onToggleChildLayout={handleToggleTextLayout}
                 onMoveChildToIndex={handleMoveChildToIndex}
                 onDeleteNode={handleDeleteNode}
+                useEditPanel
+                activeNodeId={lastFocusedId || null}
+                onNodeClick={handleFlowNodeClick}
               />
-            </div>
+            )}
           </div>
-        </div>
-      ) : editorView === "tree" ? (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col">
-          <ThinkingVerticalTree
-            session={session}
-            rootId={rootId}
-            fullscreen={treeFullscreen}
-            onToggleFullscreen={() => setTreeFullscreen((v) => !v)}
-            onSaveContent={updateNodeContent}
-            onAddQuestion={submitQuestionUnderParent}
-            onAddSiblingQuestion={submitSiblingQuestion}
-            onAddAnswer={submitAnswerUnderQuestion}
-            onDeleteNode={handleDeleteNode}
-            onSwitchToCardView={() => setEditorView("text")}
-            questionEditFocus={questionEditFocus}
-            onQuestionEditFocusConsumed={() => setQuestionEditFocus(null)}
-          />
-          {!treeFullscreen && (
-            <div className="shrink-0 px-2 py-3">
-              <FlowAdvanceBar
-                fromStage="thinking"
-                toStage="decisions"
-                title={session.title}
-                entityId={session.id}
-                compact
-              />
-            </div>
+
+          <ThinkingNodeEditPanel {...flowPanelProps} />
+
+          {actionNode && (
+            <ThinkingNodeEditPanel {...flowPanelProps} mobile />
           )}
-        </div>
-      ) : (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-auto">
-            <ThinkingTextFlow
-              session={session}
-              rootId={rootId}
-              onSaveContent={updateNodeContent}
-              onAddQuestion={submitQuestionUnderParent}
-              onAddSiblingQuestion={submitSiblingQuestion}
-              onAddAnswer={submitAnswerUnderQuestion}
-              onMergeNodes={submitMergeUnderText}
-              onToggleChildLayout={handleToggleTextLayout}
-              onMoveChildToIndex={handleMoveChildToIndex}
-              onDeleteNode={handleDeleteNode}
-              onSwitchToTreeView={() => setEditorView("tree")}
-            />
-          </div>
-          <div className="shrink-0 px-2 py-3">
-            <FlowAdvanceBar
-              fromStage="thinking"
-              toStage="decisions"
-              title={session.title}
-              entityId={session.id}
-              compact
-            />
-          </div>
         </div>
       )}
 
-      {editorView === "split" && (
-        <div className="mt-2 shrink-0">
+      {!(editorView === "tree" && treeFullscreen) && (
+        <div className="mt-1.5 shrink-0 px-1">
           <FlowAdvanceBar
             fromStage="thinking"
             toStage="decisions"

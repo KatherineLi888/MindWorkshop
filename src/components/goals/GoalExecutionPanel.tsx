@@ -20,6 +20,9 @@ import {
   formatPeriodRange,
   computeTimeProgress,
 } from "@/lib/goals/time-progress";
+import { KrTaskList } from "@/components/goals/KrTaskList";
+import { RecurrenceFields } from "@/components/goals/RecurrenceFields";
+import { isQualitativeKr } from "@/lib/goals/kr-tasks";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -32,15 +35,18 @@ type Props = {
   onOpenKr?: (krId: string) => void;
   onActivityLogged?: () => void;
   saving?: boolean;
+  compact?: boolean;
 };
 
-function newKr(): KeyResult {
+function newKr(kind: "quantitative" | "qualitative" = "quantitative"): KeyResult {
   return {
     id: crypto.randomUUID(),
     title: "",
+    krKind: kind,
+    tasks: kind === "qualitative" ? [] : undefined,
     target: 1,
     current: 0,
-    unit: "次",
+    unit: kind === "qualitative" ? "项" : "次",
     weight: 0,
     recordMode: "count",
     start_date: null,
@@ -118,13 +124,17 @@ function KrPreviewCard({
   const progressLine = formatKrProgressLine(kr);
   const period = formatPeriodRange(kr.start_date, kr.due_date);
   const time = computeTimeProgress(kr.start_date, kr.due_date);
+  const qualitative = isQualitativeKr(kr);
   const atTarget =
-    kr.target > 0 && kr.current >= kr.target && !kr.allowExceed;
+    !qualitative &&
+    kr.target > 0 &&
+    kr.current >= kr.target &&
+    !kr.allowExceed;
 
   return (
     <li
       className={cn(
-        "px-3 py-2.5 transition-colors hover:bg-[#FAFBFC]",
+        "px-2 py-2 transition-colors hover:bg-[#FAFBFC]",
         !isLast && "border-b border-[#EEF1F5]",
         onOpenDetail && "cursor-pointer"
       )}
@@ -139,6 +149,11 @@ function KrPreviewCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-slate-900">
             {kr.title.trim() || `KR ${index + 1}`}
+            {qualitative && (
+              <span className="ml-1 text-[10px] font-normal text-violet-600">
+                定性
+              </span>
+            )}
           </p>
           <p className="mt-0.5 truncate text-xs text-slate-500">
             {period && <span>{period} · </span>}
@@ -148,32 +163,40 @@ function KrPreviewCard({
         <KrProgressPercent kr={kr} className="text-lg" />
       </div>
 
-      <div className="mt-2 flex items-center gap-2">
-        <KrProgressBar kr={kr} size="md" className="flex-1" />
-        <button
-          type="button"
-          title="新增记录"
-          disabled={
-            atTarget &&
-            (kr.recordMode === "count" || kr.recordMode === "consume")
-          }
-          onClick={(e) => {
-            e.stopPropagation();
-            onRecord();
-          }}
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm leading-none transition active:scale-95",
-            atTarget &&
+      <div className="mt-1.5 flex w-full items-center gap-1.5">
+        <KrProgressBar kr={kr} size="md" className="min-w-0 flex-1" />
+        {!qualitative && (
+          <button
+            type="button"
+            title="新增记录"
+            disabled={
+              atTarget &&
               (kr.recordMode === "count" || kr.recordMode === "consume")
-              ? "cursor-not-allowed bg-slate-200 text-slate-400"
-              : visual.isOverflow
-                ? KR_PROGRESS_BAR.addBtnOverflow
-                : KR_PROGRESS_BAR.addBtn
-          )}
-        >
-          +
-        </button>
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              onRecord();
+            }}
+            className={cn(
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm leading-none transition active:scale-95",
+              atTarget &&
+                (kr.recordMode === "count" || kr.recordMode === "consume")
+                ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                : visual.isOverflow
+                  ? KR_PROGRESS_BAR.addBtnOverflow
+                  : KR_PROGRESS_BAR.addBtn
+            )}
+          >
+            +
+          </button>
+        )}
       </div>
+      {qualitative && (kr.tasks ?? []).filter((t) => t.title.trim() && !t.completed).length > 0 && (
+        <p className="mt-1 text-[10px] text-slate-400">
+          {(kr.tasks ?? []).filter((t) => t.completed).length}/
+          {(kr.tasks ?? []).filter((t) => t.title.trim()).length} 任务已完成
+        </p>
+      )}
 
       {contextMenu && (
         <ContextMenu
@@ -212,9 +235,20 @@ function KrEditForm({
   onDone: () => void;
 }) {
   const modes: KrRecordMode[] = ["set", "accumulate", "count", "consume"];
+  const qualitative = isQualitativeKr(kr);
+
+  const syncQualitativeMetrics = (tasks: KeyResult["tasks"]) => {
+    const active = (tasks ?? []).filter((t) => t.title.trim());
+    const done = active.filter((t) => t.completed).length;
+    onUpdate({
+      tasks,
+      current: done,
+      target: Math.max(1, active.length || 1),
+    });
+  };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-[#3B82F6]">
           编辑 KR {index + 1}
@@ -234,6 +268,46 @@ function KrEditForm({
         value={kr.title}
         onChange={(e) => onUpdate({ title: e.target.value })}
       />
+
+      <div className="mt-2 flex rounded-lg border border-[#E2E8F0] p-0.5 text-[10px]">
+        <button
+          type="button"
+          onClick={() =>
+            onUpdate({
+              krKind: "quantitative",
+              tasks: undefined,
+              unit: kr.unit === "项" ? "次" : kr.unit,
+            })
+          }
+          className={cn(
+            "flex-1 rounded-md py-1.5",
+            !qualitative
+              ? "bg-[#3B82F6] text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          )}
+        >
+          定量 KR
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onUpdate({
+              krKind: "qualitative",
+              tasks: kr.tasks ?? [],
+              unit: "项",
+              recordMode: "count",
+            })
+          }
+          className={cn(
+            "flex-1 rounded-md py-1.5",
+            qualitative
+              ? "bg-violet-600 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          )}
+        >
+          定性 KR（任务清单）
+        </button>
+      </div>
 
       <label className="mt-2 block text-xs text-slate-500">
         日历展示关键词
@@ -268,41 +342,38 @@ function KrEditForm({
         </label>
       </div>
 
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs text-slate-500">
-          开始日期
-          <Input
-            type="date"
-            className="mt-1"
-            value={kr.start_date ?? ""}
-            onChange={(e) =>
-              onUpdate({ start_date: e.target.value || null })
-            }
-          />
-        </label>
-        <label className="text-xs text-slate-500">
-          截止日期
-          <Input
-            type="date"
-            className="mt-1"
-            value={kr.due_date ?? ""}
-            onChange={(e) =>
-              onUpdate({ due_date: e.target.value || null })
-            }
-          />
-        </label>
+      <div className="mt-2">
+        <p className="mb-1 text-xs text-slate-500">周期与重复</p>
+        <RecurrenceFields
+          startDate={kr.start_date ?? null}
+          dueDate={kr.due_date ?? null}
+          recurrence={kr.recurrence}
+          onStartDate={(v) => onUpdate({ start_date: v })}
+          onDueDate={(v) => onUpdate({ due_date: v })}
+          onRecurrence={(v) => onUpdate({ recurrence: v })}
+        />
       </div>
 
-      <QuantityRow
-        label="目标"
-        value={kr.target}
-        unit={kr.unit}
-        unitEditable
-        onValueChange={(n) => onUpdate({ target: Math.max(0.01, n) })}
-        onUnitChange={(u) => onUpdate({ unit: u })}
-      />
+      {qualitative ? (
+        <div className="mt-3">
+          <p className="mb-2 text-xs font-medium text-slate-600">子任务分解</p>
+          <KrTaskList
+            tasks={kr.tasks ?? []}
+            onChange={(tasks) => syncQualitativeMetrics(tasks)}
+          />
+        </div>
+      ) : (
+        <QuantityRow
+          label="目标"
+          value={kr.target}
+          unit={kr.unit}
+          unitEditable
+          onValueChange={(n) => onUpdate({ target: Math.max(0.01, n) })}
+          onUnitChange={(u) => onUpdate({ unit: u })}
+        />
+      )}
 
-      {kr.recordMode === "set" && kr.valueDirection === "down" && (
+      {!qualitative && kr.recordMode === "set" && kr.valueDirection === "down" && (
         <div className="mt-2">
           <QuantityRow
             label="起始值"
@@ -313,6 +384,8 @@ function KrEditForm({
         </div>
       )}
 
+      {!qualitative && (
+        <>
       <p className="mt-3 text-xs font-medium text-slate-600">记录方式</p>
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">
         {modes.map((mode) => (
@@ -392,6 +465,8 @@ function KrEditForm({
           </span>
         </span>
       </label>
+        </>
+      )}
 
       {weightSum !== 100 && (
         <p className="mt-2 text-[10px] text-amber-600">
@@ -416,6 +491,7 @@ export function GoalExecutionPanel({
   onOpenKr,
   onActivityLogged,
   saving,
+  compact,
 }: Props) {
   const [dirty, setDirty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -486,13 +562,17 @@ export function GoalExecutionPanel({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className={cn("w-full space-y-2", compact && "space-y-1.5")}>
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
         <div>
-          <h3 className="text-sm font-semibold text-slate-800">关键结果</h3>
-          <p className="text-[10px] text-slate-400">
-            进度条 + 记录 · 右键编辑
-          </p>
+          <h3 className={cn("font-semibold text-slate-800", compact ? "text-xs" : "text-sm")}>
+            关键结果
+          </h3>
+          {!compact && (
+            <p className="text-[10px] text-slate-400">
+              进度条 + 记录 · 右键编辑
+            </p>
+          )}
         </div>
         <div className="flex gap-1">
           {execution.key_results.length > 1 && weightSum !== 100 && (
@@ -510,8 +590,30 @@ export function GoalExecutionPanel({
               平均分配权重
             </Button>
           )}
-          <Button type="button" size="sm" variant="secondary" onClick={addKr}>
-            + 添加 KR
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => addKr()}
+          >
+            + 定量 KR
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-violet-700"
+            onClick={() => {
+              const kr = newKr("qualitative");
+              const next = redistributeKrWeights([
+                ...execution.key_results,
+                kr,
+              ]);
+              patch({ ...execution, key_results: next });
+              setEditingId(kr.id);
+            }}
+          >
+            + 定性 KR
           </Button>
         </div>
       </div>
@@ -521,12 +623,15 @@ export function GoalExecutionPanel({
           添加关键结果后，将在此直接看到每条 KR 的完成进度
         </p>
       ) : (
-        <ul className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+        <ul className="w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
           {execution.key_results.map((kr, i) =>
             editingId === kr.id ? (
               <li
                 key={kr.id}
-                className="border-b border-[#E2E8F0] bg-[#F8FAFC] p-3 last:border-b-0"
+                className={cn(
+                  "border-b border-[#E2E8F0] bg-[#F8FAFC] last:border-b-0",
+                  compact ? "p-2" : "p-3"
+                )}
               >
                 <KrEditForm
                   kr={kr}

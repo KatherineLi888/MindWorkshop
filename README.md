@@ -1,4 +1,4 @@
-# 思绪工坊 · Thought Workshop
+# 思绪工坊 · Mind Workshop
 
 白色极简 PWA：决策树、目标 SMART、问题图谱、思维模型、知识画布、收集箱、统计仪表盘、AI 助手。
 

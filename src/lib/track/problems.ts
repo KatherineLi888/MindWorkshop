@@ -37,5 +37,5 @@ export function groupProblemsByAnchor(
 }
 
 export function openProblemCount(nodes: GraphNodeRow[]): number {
-  return nodes.filter((n) => !n.resolved).length;
+  return nodes.filter((n) => !n.resolved && !n.archived_at).length;
 }

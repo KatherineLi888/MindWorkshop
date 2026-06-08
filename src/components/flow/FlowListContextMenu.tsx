@@ -16,6 +16,8 @@ type Props = {
   onClose: () => void;
   /** 额外菜单项（如删除、归档） */
   extraItems?: ContextMenuItem[];
+  /** 新增问题追踪（弹窗，不跳转） */
+  onAddTrack?: () => void;
   /** 排除的跳转目标（如已在底部展示的主按钮） */
   excludeStages?: FlowStage[];
 };
@@ -29,6 +31,7 @@ export function FlowListContextMenu({
   onClose,
   extraItems = [],
   excludeStages = [],
+  onAddTrack,
 }: Props) {
   const { jump } = useFlowJump();
 
@@ -44,9 +47,17 @@ export function FlowListContextMenu({
     },
   }));
 
+  const trackItem: ContextMenuItem[] = onAddTrack
+    ? [{ type: "action" as const, label: "新增问题追踪", onClick: onAddTrack }]
+    : [];
+
   const items: ContextMenuItem[] = [
+    ...trackItem,
+    ...(trackItem.length && jumpItems.length
+      ? [{ type: "separator" as const }]
+      : []),
     ...jumpItems,
-    ...(jumpItems.length && extraItems.length
+    ...((trackItem.length || jumpItems.length) && extraItems.length
       ? [{ type: "separator" as const }]
       : []),
     ...extraItems,

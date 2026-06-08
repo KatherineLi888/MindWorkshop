@@ -1,6 +1,7 @@
 "use client";
 
 import { DecisionTagBadges } from "@/components/decision/DecisionTagBadges";
+import { useLongPress } from "@/hooks/useLongPress";
 import { cn, formatDateOnly } from "@/lib/utils";
 import type { DecisionRow } from "@/types/database";
 
@@ -18,6 +19,19 @@ export function DecisionListCard({ row, onClick, onContextMenu }: Props) {
     "（待补充结论）";
   const goal = row.manual_goal?.trim();
 
+  const longPress = useLongPress({
+    onLongPress: (e) => {
+      const touch = "touches" in e && e.touches[0] ? e.touches[0] : null;
+      if (!touch) return;
+      onContextMenu({
+        preventDefault: () => {},
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+      } as React.MouseEvent);
+    },
+    onContextMenu,
+  });
+
   return (
     <article
       role="button"
@@ -29,7 +43,7 @@ export function DecisionListCard({ row, onClick, onContextMenu }: Props) {
           onClick();
         }
       }}
-      onContextMenu={onContextMenu}
+      {...longPress.handlers}
       className={cn(
         "group cursor-pointer rounded-xl border px-3.5 py-2.5 text-left shadow-sm transition-colors",
         isAbandon

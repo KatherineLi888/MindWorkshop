@@ -1,12 +1,11 @@
 import { loadLocal, saveLocal } from "@/lib/local-store";
 import {
   cloneLayout,
-  DEFAULT_LAYOUT,
-  loadDashboardLayout,
   type DashboardLayout,
   type TimeRange,
   type WidgetFilters,
 } from "./dashboard-config";
+import { layoutForBuiltinView } from "./period-layouts";
 
 const VIEWS_STORAGE_KEY = "workshop-stats-dashboard-views-v1";
 
@@ -33,45 +32,37 @@ export type ViewTimeScope = Pick<
 >;
 
 export const VIEW_PRESET_LABELS: Record<
-  "today" | "week" | "month",
+  "today" | "week" | "month" | "all",
   string
 > = {
   today: "当日",
   week: "本周",
   month: "本月",
+  all: "全部",
 };
 
+const BUILTIN_IDS = ["day", "week", "month", "all"] as const;
+
 const BUILTIN_SPECS: Array<{
-  id: string;
+  id: (typeof BUILTIN_IDS)[number];
   label: string;
-  description: string;
   timePreset: TimeRange;
 }> = [
-  {
-    id: "day",
-    label: "当日仪表盘",
-    description: "聚焦今天的创建、更新与推进",
-    timePreset: "today",
-  },
-  {
-    id: "week",
-    label: "本周仪表盘",
-    description: "查看本周整体节奏与进展",
-    timePreset: "week",
-  },
-  {
-    id: "month",
-    label: "本月仪表盘",
-    description: "月度复盘与态势纵览",
-    timePreset: "month",
-  },
+  { id: "day", label: "当日", timePreset: "today" },
+  { id: "week", label: "本周", timePreset: "week" },
+  { id: "month", label: "本月", timePreset: "month" },
+  { id: "all", label: "全部", timePreset: "all" },
 ];
 
-function createBuiltinViews(baseLayout: DashboardLayout): DashboardView[] {
+export function isBuiltinViewId(id: string): boolean {
+  return (BUILTIN_IDS as readonly string[]).includes(id);
+}
+
+function createBuiltinViews(): DashboardView[] {
   return BUILTIN_SPECS.map((spec) => ({
     ...spec,
     builtin: true,
-    layout: cloneLayout(baseLayout),
+    layout: layoutForBuiltinView(spec.id),
   }));
 }
 
@@ -98,22 +89,39 @@ export function mergeViewFilters(
 
 export function loadDashboardViews(): DashboardViewsStore {
   const stored = loadLocal<DashboardViewsStore | null>(VIEWS_STORAGE_KEY, null);
+  const builtins = createBuiltinViews();
+
   if (stored?.views?.length) {
-    const views = stored.views.map((v) => ({
-      ...v,
-      layout: v.layout?.instances?.length
-        ? v.layout
-        : cloneLayout(DEFAULT_LAYOUT),
-    }));
+    const mergedBuiltins = builtins.map((builtin) => {
+      const saved = stored.views.find((v) => v.id === builtin.id);
+      if (!saved) return builtin;
+      if (builtin.id === "day") return { ...builtin, layout: builtin.layout };
+      return {
+        ...builtin,
+        layout:
+          saved.layout?.instances?.length
+            ? saved.layout
+            : builtin.layout,
+      };
+    });
+    const customs = stored.views
+      .filter((v) => !isBuiltinViewId(v.id))
+      .map((v) => ({
+        ...v,
+        builtin: false,
+        layout:
+          v.layout?.instances?.length
+            ? v.layout
+            : layoutForBuiltinView("week"),
+      }));
+    const views = [...mergedBuiltins, ...customs];
     const activeViewId = views.some((v) => v.id === stored.activeViewId)
       ? stored.activeViewId
-      : views[0].id;
+      : "day";
     return { activeViewId, views };
   }
 
-  const legacyLayout = loadDashboardLayout();
-  const views = createBuiltinViews(legacyLayout);
-  const initial: DashboardViewsStore = { activeViewId: "day", views };
+  const initial: DashboardViewsStore = { activeViewId: "day", views: builtins };
   saveDashboardViews(initial);
   return initial;
 }
@@ -213,5 +221,6 @@ export function viewTimeLabel(view: DashboardView): string {
   if (view.timePreset === "week") return "本周";
   if (view.timePreset === "month") return "本月";
   if (view.timePreset === "7d") return "近 7 日";
-  return "全部时间";
+  if (view.timePreset === "all") return "全部";
+  return "全部";
 }

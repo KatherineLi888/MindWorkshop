@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { AuthSessionKeeper } from "@/components/auth/AuthSessionKeeper";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "思绪工坊",
-  description: "AI 驱动的个人知识与工作流 PWA",
+  description: "Mind Workshop · AI 驱动的个人知识与工作流 PWA",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -24,7 +25,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN" className="h-full">
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <AuthSessionKeeper />
+        {children}
+      </body>
     </html>
   );
 }

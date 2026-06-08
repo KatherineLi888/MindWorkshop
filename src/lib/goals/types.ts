@@ -3,12 +3,31 @@ import {
   computeWeightedOkrProgress,
   normalizeKeyResult,
 } from "./kr-progress";
+import { normalizeRecurrence, type RecurrenceSchedule } from "./recurrence";
 
 export type KrRecordMode = "set" | "accumulate" | "count" | "consume";
+
+/** 定性 KR 下的子任务 */
+export type KrTask = {
+  id: string;
+  title: string;
+  due_date: string | null;
+  start_date?: string | null;
+  recurrence?: RecurrenceSchedule | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+};
+
+export type KrKind = "quantitative" | "qualitative";
 
 export type KeyResult = {
   id: string;
   title: string;
+  /** 定量=数字指标；定性=任务清单完成度 */
+  krKind?: KrKind;
+  /** 定性 KR 的子任务 */
+  tasks?: KrTask[];
   /** 目标量 */
   target: number;
   /** 当前值 / 累计值 / 已完成次数 */
@@ -29,6 +48,7 @@ export type KeyResult = {
   allowExceed?: boolean;
   /** 日历打卡展示关键词，如「上肢」→ 日历显示「上肢 3次」 */
   calendarKeyword?: string;
+  recurrence?: RecurrenceSchedule | null;
 };
 
 export type GoalExecution = {

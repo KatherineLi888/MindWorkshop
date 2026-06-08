@@ -39,13 +39,15 @@ function EventRow({
   prev,
   isLast,
   compact,
+  returnTo,
 }: {
   event: SeedLifeEvent;
   prev?: SeedLifeEvent;
   isLast: boolean;
   compact?: boolean;
+  returnTo?: string;
 }) {
-  const href = seedEntityHref(event.entityType, event.entityId);
+  const href = seedEntityHref(event.entityType, event.entityId, returnTo);
   const dot = STAGE_DOT[event.stage] ?? "bg-slate-300";
   const ring = STAGE_RING[event.stage] ?? "ring-slate-200";
 

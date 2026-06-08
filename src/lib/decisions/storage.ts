@@ -79,20 +79,27 @@ export function buildDecisionRow(input: {
   };
 }
 
-export async function persistDecision(row: DecisionRow): Promise<void> {
+export async function persistDecision(row: DecisionRow): Promise<string> {
+  const normalized = normalizeRow(row);
   if (!isCloudEnabled()) {
     const prev = loadLocal<DecisionRow[]>(LOCAL_KEYS.decisions, []);
-    saveLocal(LOCAL_KEYS.decisions, [row, ...prev.map(normalizeRow)]);
+    const idx = prev.findIndex((d) => d.id === row.id);
+    const next =
+      idx >= 0
+        ? prev.map((d, i) => (i === idx ? normalized : d))
+        : [normalized, ...prev.map(normalizeRow)];
+    saveLocal(LOCAL_KEYS.decisions, next);
     ensureEntityHasSeed({
       entityType: "decision",
       entityId: row.id,
       title: row.title,
       stage: "decisions",
     });
-    return;
+    return row.id;
   }
   const supabase = createClient();
-  await supabase.from("decisions").insert({
+  const payload = {
+    id: row.id,
     user_id: row.user_id,
     title: row.title,
     source: row.source,
@@ -107,7 +114,52 @@ export async function persistDecision(row: DecisionRow): Promise<void> {
     manual_conclusion: row.manual_conclusion,
     manual_goal: row.manual_goal,
     decision_notes: row.decision_notes ?? [],
+    updated_at: row.updated_at,
+  };
+  const { error } = await supabase.from("decisions").upsert(payload);
+  if (error) throw error;
+  ensureEntityHasSeed({
+    entityType: "decision",
+    entityId: row.id,
+    title: row.title,
+    stage: "decisions",
   });
+  return row.id;
+}
+
+/** 决策流程进行中草稿（刷新不丢） */
+export async function saveDecisionDraft(input: {
+  id: string;
+  user_id: string;
+  title: string;
+  answers: FlowAnswers;
+  source?: "active" | "passive";
+}): Promise<void> {
+  const now = new Date().toISOString();
+  const tags = tagsFromFlowState(input.answers);
+  const row: DecisionRow = {
+    id: input.id,
+    user_id: input.user_id,
+    title: input.title.trim(),
+    source: input.source ?? "active",
+    path_summary: "",
+    final_action: "",
+    flow_state: input.answers,
+    background: null,
+    constraints: null,
+    personal_notes: null,
+    flow_confirmed: false,
+    tag_executor: tags.tag_executor,
+    tag_horizon: tags.tag_horizon,
+    tag_outcome: tags.tag_outcome,
+    manual_conclusion: null,
+    manual_goal: null,
+    decision_notes: [],
+    archived_at: null,
+    created_at: now,
+    updated_at: now,
+  };
+  await persistDecision(row);
 }
 
 export async function updateDecisionNotes(

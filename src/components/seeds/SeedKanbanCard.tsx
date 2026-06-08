@@ -1,57 +1,54 @@
 "use client";
 
-import Link from "next/link";
-import { seedBoardMeta, SEED_PHASE_LABELS, isGoalPlanSeed, GOAL_PLAN_SEED_MARKER } from "@/lib/seeds/classify";
+import { useRouter } from "next/navigation";
+import {
+  seedBoardMeta,
+  SEED_PHASE_LABELS,
+  isGoalPlanSeed,
+  GOAL_PLAN_SEED_MARKER,
+} from "@/lib/seeds/classify";
+import { seedOriginLabel } from "@/lib/seeds/origin";
+import { PHASE_ICONS } from "@/lib/seeds/overview-stats";
+import { seedDisplayTitle } from "@/lib/seeds/naming";
 import type { IdeaSeed } from "@/lib/seeds/types";
 import { formatDate } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-
-const PHASE_STYLE = {
-  sprouting: "bg-lime-50 text-lime-800 ring-lime-200",
-  growing: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  archived: "bg-slate-100 text-slate-500 ring-slate-200",
-};
 
 export function SeedKanbanCard({ seed }: { seed: IdeaSeed }) {
+  const router = useRouter();
   const meta = seedBoardMeta(seed);
   const goalPlan = isGoalPlanSeed(seed);
+  const title = seedDisplayTitle(seed.title);
+  const phase = meta.phase;
 
   return (
-    <Link
-      href={`/seeds/${seed.id}`}
-      className="block rounded-lg border border-[#EEF1F5] bg-white p-3 transition hover:border-[#BFDBFE] hover:shadow-sm"
+    <button
+      type="button"
+      onClick={() => router.push(`/seeds/${seed.id}`)}
+      className="block w-full rounded-lg border border-[#EEF1F5] bg-white p-3 text-left transition hover:border-[#CBD5E1] hover:shadow-sm active:scale-[0.99]"
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-slate-800">
-          {seed.title}
-        </p>
-        <div className="shrink-0 text-right">
-          <p className="text-[10px] font-medium tabular-nums text-slate-600">
-            {meta.stageCount} 阶段
-          </p>
-          <p className="text-[10px] text-[#1D4ED8]">{meta.currentStageLabel}</p>
-        </div>
+      <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
+        <span aria-hidden>{PHASE_ICONS[phase]}</span>
+        <span>{SEED_PHASE_LABELS[phase]}</span>
+        {goalPlan && phase !== "archived" && (
+          <span className="text-violet-600">· {GOAL_PLAN_SEED_MARKER}</span>
+        )}
+        <span className="ml-auto tabular-nums text-slate-400">
+          {meta.stageCount} 阶段
+        </span>
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] text-slate-400">
+
+      <p className="mt-2 text-sm font-medium leading-snug text-slate-800">
+        {title}
+      </p>
+
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-[#F1F5F9] pt-2">
+        <span className="text-[10px] text-slate-500">
+          来源 · {seedOriginLabel(seed)}
+        </span>
+        <span className="shrink-0 text-[10px] text-slate-400">
           {formatDate(seed.updatedAt)}
         </span>
-        <div className="flex shrink-0 items-center gap-1">
-          {goalPlan && meta.phase !== "archived" && (
-            <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 ring-1 ring-violet-200">
-              {GOAL_PLAN_SEED_MARKER}
-            </span>
-          )}
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[9px] font-medium ring-1",
-              PHASE_STYLE[meta.phase]
-            )}
-          >
-            {SEED_PHASE_LABELS[meta.phase]}
-          </span>
-        </div>
       </div>
-    </Link>
+    </button>
   );
 }

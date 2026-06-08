@@ -64,7 +64,9 @@ type Props = {
     markProgress: boolean
   ) => void;
   onDeleteNode: (nodeId: string) => void;
-  onSwitchToCardView?: () => void;
+  useEditPanel?: boolean;
+  activeNodeId?: string | null;
+  onNodeClick?: (nodeId: string) => void;
   questionEditFocus?: QuestionEditFocus | null;
   onQuestionEditFocusConsumed?: () => void;
 };
@@ -670,6 +672,9 @@ function TreeUnitBox({
   onQuestionEditFocusConsumed,
   onContextMenu,
   onLongPressAt,
+  useEditPanel,
+  activeNodeId,
+  onNodeClick,
 }: {
   unit: LayoutUnit;
   session: ThoughtSession;
@@ -680,6 +685,9 @@ function TreeUnitBox({
   onQuestionEditFocusConsumed?: () => void;
   onContextMenu: (e: ReactMouseEvent, nodeId: string) => void;
   onLongPressAt?: (x: number, y: number) => void;
+  useEditPanel?: boolean;
+  activeNodeId?: string | null;
+  onNodeClick?: (nodeId: string) => void;
 }) {
   const { getMethod } = useThinkingMethods();
   const longPress = useNodeLongPress((x, y) => onLongPressAt?.(x, y));
@@ -767,7 +775,12 @@ function TreeUnitBox({
         paddingTop: topPad,
         fontFamily: THINK_FONT_FAMILY,
       }}
-      onContextMenu={(e) => onContextMenu(e, unit.question.id)}
+      onContextMenu={(e) => {
+        const target = (e.target as HTMLElement).closest("[data-node-id]");
+        const nodeId =
+          target?.getAttribute("data-node-id") ?? unit.question.id;
+        onContextMenu(e, nodeId);
+      }}
       {...(onLongPressAt ? longPress : {})}
     >
       {methodDef && (
@@ -792,32 +805,90 @@ function TreeUnitBox({
         }}
       >
         {isTopic ? (
-          <CompactRowInput
-            value={qDraft}
-            onChange={setQDraft}
-            onBlur={commitQ}
-            placeholder="思考主题…"
-            textColor="#0F172A"
-            cfg={cfg}
-            bodyWidth={bodyW}
-            maxChars={maxChars}
-            className="text-[14px] font-semibold"
-          />
-        ) : (
-          <div className="flex w-full flex-col">
-            <LabeledRowInput
-              label="问题"
-              variant="question"
+          useEditPanel ? (
+            <button
+              type="button"
+              data-node-id={unit.question.id}
+              onClick={() => onNodeClick?.(unit.question.id)}
+              className={cn(
+                "w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-white/60",
+                activeNodeId === unit.question.id && "ring-1 ring-[#3B82F6]"
+              )}
+            >
+              <p className="text-[14px] font-semibold leading-snug text-slate-900">
+                {qDraft.trim() || "思考主题…"}
+              </p>
+            </button>
+          ) : (
+            <CompactRowInput
               value={qDraft}
               onChange={setQDraft}
               onBlur={commitQ}
-              placeholder={resolveQuestionPlaceholder(unit.question, getMethod)}
+              placeholder="思考主题…"
+              textColor="#0F172A"
               cfg={cfg}
               bodyWidth={bodyW}
               maxChars={maxChars}
-              focusSelection={questionFocusSelection}
-              onFocusSelectionApplied={onQuestionEditFocusConsumed}
+              className="text-[14px] font-semibold"
             />
+          )
+        ) : useEditPanel ? (
+          <div className="flex w-full flex-col">
+            <button
+              type="button"
+              data-node-id={unit.question.id}
+              onClick={() => onNodeClick?.(unit.question.id)}
+              className={cn(
+                "w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-white/60",
+                activeNodeId === unit.question.id && "ring-1 ring-[#3B82F6]"
+              )}
+            >
+              <p className="text-[9px] font-semibold text-slate-400">问题</p>
+              <p className="text-[13px] leading-snug text-slate-800">
+                {qDraft.trim() ||
+                  resolveQuestionPlaceholder(unit.question, getMethod)}
+              </p>
+            </button>
+            {unit.answer && (
+              <>
+                <div
+                  className="mx-1 my-0.5 h-px shrink-0 bg-slate-300"
+                  aria-hidden
+                />
+                <button
+                  type="button"
+                  data-node-id={unit.answer.id}
+                  onClick={() => onNodeClick?.(unit.answer!.id)}
+                  className={cn(
+                    "w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-white/60",
+                    activeNodeId === unit.answer.id && "ring-1 ring-[#3B82F6]"
+                  )}
+                >
+                  <p className="text-[9px] font-semibold text-slate-400">回答</p>
+                  <p className="text-[12px] leading-snug text-slate-700">
+                    {aDraft.trim() || "回答…"}
+                  </p>
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="flex w-full flex-col">
+            <div data-node-id={unit.question.id}>
+              <LabeledRowInput
+                label="问题"
+                variant="question"
+                value={qDraft}
+                onChange={setQDraft}
+                onBlur={commitQ}
+                placeholder={resolveQuestionPlaceholder(unit.question, getMethod)}
+                cfg={cfg}
+                bodyWidth={bodyW}
+                maxChars={maxChars}
+                focusSelection={questionFocusSelection}
+                onFocusSelectionApplied={onQuestionEditFocusConsumed}
+              />
+            </div>
             {unit.answer && (
               <>
                 <div
@@ -829,18 +900,20 @@ function TreeUnitBox({
                   }}
                   aria-hidden
                 />
-                <LabeledRowInput
-                  label="回答"
-                  variant="answer"
-                  value={aDraft}
-                  onChange={setADraft}
-                  onBlur={commitA}
-                  placeholder="回答…"
-                  cfg={cfg}
-                  bodyWidth={bodyW}
-                  maxChars={maxChars}
-                  className="text-[12px]"
-                />
+                <div data-node-id={unit.answer.id}>
+                  <LabeledRowInput
+                    label="回答"
+                    variant="answer"
+                    value={aDraft}
+                    onChange={setADraft}
+                    onBlur={commitA}
+                    placeholder="回答…"
+                    cfg={cfg}
+                    bodyWidth={bodyW}
+                    maxChars={maxChars}
+                    className="text-[12px]"
+                  />
+                </div>
               </>
             )}
           </div>
@@ -869,6 +942,9 @@ function TreeCanvas({
   onDeleteNode,
   questionEditFocus,
   onQuestionEditFocusConsumed,
+  useEditPanel,
+  activeNodeId,
+  onNodeClick,
 }: {
   session: ThoughtSession;
   sessionRootId: string;
@@ -880,6 +956,9 @@ function TreeCanvas({
   onDeleteNode: (nodeId: string) => void;
   questionEditFocus?: QuestionEditFocus | null;
   onQuestionEditFocusConsumed?: () => void;
+  useEditPanel?: boolean;
+  activeNodeId?: string | null;
+  onNodeClick?: (nodeId: string) => void;
 }) {
   const cfg = useTreeLayoutConfig();
   const viewRoot = session.nodes.find((n) => n.id === viewRootId);
@@ -1238,6 +1317,9 @@ function TreeCanvas({
                 onLongPressAt={(x, y) =>
                   openContextMenuAt(unit.question.id, x, y)
                 }
+                useEditPanel={useEditPanel}
+                activeNodeId={activeNodeId}
+                onNodeClick={onNodeClick}
               />
             ))}
           </div>
@@ -1343,7 +1425,9 @@ export function ThinkingVerticalTree({
   onAddQuestion,
   onAddSiblingQuestion,
   onDeleteNode,
-  onSwitchToCardView,
+  useEditPanel,
+  activeNodeId,
+  onNodeClick,
   questionEditFocus,
   onQuestionEditFocusConsumed,
 }: Props) {
@@ -1355,15 +1439,6 @@ export function ThinkingVerticalTree({
 
   const viewToolbar = (
     <div className="flex items-center gap-1.5">
-      {onSwitchToCardView && (
-        <button
-          type="button"
-          onClick={onSwitchToCardView}
-          className="rounded-lg border border-[#E2E8F0] bg-white/95 px-2.5 py-1 text-[10px] text-slate-600 shadow-sm hover:bg-slate-50"
-        >
-          卡片视角
-        </button>
-      )}
       {onToggleFullscreen && (
         <button
           type="button"
@@ -1388,6 +1463,9 @@ export function ThinkingVerticalTree({
       onDeleteNode={onDeleteNode}
       questionEditFocus={questionEditFocus}
       onQuestionEditFocusConsumed={onQuestionEditFocusConsumed}
+      useEditPanel={useEditPanel}
+      activeNodeId={activeNodeId}
+      onNodeClick={onNodeClick}
     />
   );
 

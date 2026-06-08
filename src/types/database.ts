@@ -93,7 +93,7 @@ export type GoalRow = {
   updated_at: string;
 };
 
-export type TrackLoopbackTarget = "thinking" | "decisions" | "goals";
+export type TrackLoopbackTarget = "thinking" | "decisions" | "goals" | "home";
 
 export type GraphNodeRow = {
   id: string;
@@ -103,16 +103,21 @@ export type GraphNodeRow = {
   background: string;
   /** 问题导向：当前卡点或待解问题 */
   problem_focus?: string;
-  /** 解决思路 */
+  /** 解决思路 / 个人想法方案 */
   solution_approach?: string;
+  /** 后续解决规划 */
+  resolution_plan?: string;
   /** 锚定来源：目标或决策（新建必填） */
   anchor_type?: "goal" | "decision" | "goal_kr" | null;
   anchor_id?: string | null;
   /** 已解决且不影响整体进程 */
   resolved?: boolean;
+  /** 待跟进时的归类：收集箱 / 立即处理；已解决时为 null */
+  track_handle?: "inbox" | "immediate" | null;
   /** 未解决时需回转的阶段；resolved 时忽略 */
   loopback_target?: TrackLoopbackTarget | null;
   status: "tracking" | "paused" | "abandoned" | "ongoing";
+  archived_at?: string | null;
   position_x: number;
   position_y: number;
   created_at: string;

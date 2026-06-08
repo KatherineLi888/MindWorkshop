@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { DecisionTreeMap } from "./DecisionTreeMap";
 import { DecisionWrapUp } from "./DecisionWrapUp";
 import {
@@ -29,9 +29,20 @@ type Props = {
     manual_goal: string;
   }) => void;
   onCancel: () => void;
+  onAutosave?: (answers: FlowAnswers) => void;
 };
 
-export function DecisionFlow({ title, onComplete, onCancel }: Props) {
+const VALUE_CUSTOM_KEY: Record<string, string> = {
+  active_value: "active_value_custom",
+  passive_exchange: "passive_exchange_custom",
+};
+
+export function DecisionFlow({
+  title,
+  onComplete,
+  onCancel,
+  onAutosave,
+}: Props) {
   const [history, setHistory] = useState<string[]>([initialStepId()]);
   const [answers, setAnswers] = useState<FlowAnswers>({});
   const [noteDraft, setNoteDraft] = useState("");
@@ -55,6 +66,7 @@ export function DecisionFlow({ title, onComplete, onCancel }: Props) {
       : { ...answers, ...patch };
 
     setAnswers(withNote);
+    onAutosave?.(withNote);
     const next = nextStepId(stepId, withNote);
 
     if (next === "DONE") {
@@ -161,8 +173,26 @@ export function DecisionFlow({ title, onComplete, onCancel }: Props) {
                   </button>
                 );
               })}
-              <p className="text-xs text-slate-400">
-                不勾选任何项并确认，视为放弃此事。
+              {VALUE_CUSTOM_KEY[step.id] && (
+                <div className="mt-2">
+                  <label className="text-xs text-slate-500">
+                    或填写其他价值（备注）
+                  </label>
+                  <Input
+                    className="mt-1 h-9 text-sm"
+                    placeholder="手动填写价值说明，与预设选项同等生效"
+                    value={String(answers[VALUE_CUSTOM_KEY[step.id]] ?? "")}
+                    onChange={(e) =>
+                      setAnswers((a) => ({
+                        ...a,
+                        [VALUE_CUSTOM_KEY[step.id]]: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              )}
+              <p className="mt-2 text-xs text-slate-400">
+                不勾选预设且未填写备注并确认，视为放弃此事。
               </p>
               <Button
                 variant="primary"
@@ -170,6 +200,12 @@ export function DecisionFlow({ title, onComplete, onCancel }: Props) {
                 onClick={() =>
                   advance({
                     [step.id]: (answers[step.id] as string[]) || [],
+                    ...(VALUE_CUSTOM_KEY[step.id]
+                      ? {
+                          [VALUE_CUSTOM_KEY[step.id]]:
+                            answers[VALUE_CUSTOM_KEY[step.id]] ?? "",
+                        }
+                      : {}),
                   })
                 }
               >

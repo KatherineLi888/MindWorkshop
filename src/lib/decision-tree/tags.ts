@@ -1,5 +1,9 @@
 import type { FlowAnswers } from "./flow";
-import { rebuildHistoryFromAnswers, isAbandonTerminal } from "./flow";
+import {
+  hasMultiValueSelection,
+  rebuildHistoryFromAnswers,
+  isAbandonTerminal,
+} from "./flow";
 
 export type DecisionExecutorTag = "self" | "delegate";
 export type DecisionHorizonTag = "short" | "long";
@@ -42,19 +46,17 @@ export function computeDecisionTags(answers: FlowAnswers): DecisionTags {
   } else if (answers.not_altruism === "drop") {
     tag_outcome = "abandon";
   } else {
-    const activeSel = (answers.active_value as string[]) || [];
     if (
       answers.origin === "active" &&
       history.includes("active_value") &&
-      activeSel.length === 0
+      !hasMultiValueSelection(answers, "active_value")
     ) {
       tag_outcome = "abandon";
     }
-    const passiveSel = (answers.passive_exchange as string[]) || [];
     if (
       answers.origin === "passive" &&
       history.includes("passive_exchange") &&
-      passiveSel.length === 0
+      !hasMultiValueSelection(answers, "passive_exchange")
     ) {
       tag_outcome = "abandon";
     }

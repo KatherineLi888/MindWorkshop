@@ -12,7 +12,7 @@ export function DashboardEditBar({ onReset, onCancel, onDone }: Props) {
   return (
     <div className="fixed bottom-16 left-0 right-0 z-50 border-t border-[#BFDBFE] bg-[#EFF6FF]/95 px-3 py-2.5 shadow-lg backdrop-blur-sm md:bottom-0">
       <p className="mb-2 text-center text-[10px] text-[#1D4ED8]">
-        编辑模式 · 点格子「+」在指定位置添加 · 长按组件可移动
+        编辑模式 · 右键组件可编辑/删除 · 点格子「+」添加 · 长按可移动
       </p>
       <div className="mx-auto flex max-w-7xl items-center justify-center gap-2">
         <Button variant="ghost" size="sm" onClick={onReset}>

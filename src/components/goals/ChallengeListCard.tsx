@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GoalSeedBadge } from "@/components/goals/GoalSeedBadge";
 import { KrProgressBar, KrProgressPercent } from "@/components/goals/KrProgressBar";
 import { KrQuickAddButton } from "@/components/goals/KrQuickAddButton";
 import { KrRecordDialog } from "@/components/goals/KrRecordDialog";
@@ -30,6 +31,7 @@ type Props = {
   expanded: boolean;
   onToggleExpand: (e: React.MouseEvent) => void;
   onOpenGoal: () => void;
+  onOpenChallenge?: () => void;
   onGoalUpdated: (goals: GoalWithMeta[]) => void;
   onChallengeUpdated: () => void;
 };
@@ -44,6 +46,7 @@ export function ChallengeListCard({
   expanded,
   onToggleExpand,
   onOpenGoal,
+  onOpenChallenge,
   onGoalUpdated,
   onChallengeUpdated,
 }: Props) {
@@ -61,12 +64,6 @@ export function ChallengeListCard({
     challenge.start_date,
     challenge.due_date
   );
-  const goalProgressVisual = resolveProgressVisual(
-    goal.progress,
-    goal.execution.start_date,
-    goal.execution.due_date
-  );
-
   const items = challenge.kr_targets
     .map((item) => {
       const kr = krs.find((k) => k.id === item.linkedKrId);
@@ -110,7 +107,11 @@ export function ChallengeListCard({
       )}
     >
       <div className="flex items-start gap-2 px-3 pt-3">
-        <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={() => onOpenChallenge?.()}
+        >
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
               挑战
@@ -123,32 +124,9 @@ export function ChallengeListCard({
             {period ?? "未设置周期"}
             <span className="text-slate-400"> · {countLabel}</span>
           </p>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenGoal();
-            }}
-            className="mt-1 flex flex-wrap items-center gap-x-1 text-[11px]"
-          >
-            <span className="text-violet-500">关联</span>
-            <span className="max-w-[8rem] truncate font-medium text-slate-700 hover:text-violet-700">
-              {goal.title}
-            </span>
-            <span className="text-slate-300">·</span>
-            <span className="text-slate-400">主目标</span>
-            <span
-              className={cn(
-                "font-semibold tabular-nums",
-                goalProgressVisual.percentClass
-              )}
-            >
-              {goal.progress}%
-            </span>
-          </button>
-        </div>
+        </button>
 
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
           <p
             className={cn(
               "text-xl font-semibold tabular-nums leading-none",
@@ -159,6 +137,21 @@ export function ChallengeListCard({
           >
             {progress}%
           </p>
+          <div className="flex max-w-[11rem] items-center justify-end gap-1">
+            <span className="shrink-0 text-[11px] text-violet-400">→</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenGoal();
+              }}
+              className="min-w-0 truncate text-[11px] font-medium text-slate-600 hover:text-violet-700"
+              title={`关联主目标：${goal.title}`}
+            >
+              {goal.title}
+            </button>
+            <GoalSeedBadge entityId={goal.id} title={goal.title} />
+          </div>
           <button
             type="button"
             title="删除挑战"

@@ -39,7 +39,7 @@ export function GoalOkrEditForm({
   const isPending = draft.goal_type === "pending";
 
   return (
-    <div className="mt-3 space-y-4 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+    <div className="mt-2 space-y-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2.5">
       <p className="text-xs font-semibold text-[#3B82F6]">编辑 OKR</p>
 
       <label className="block text-xs text-slate-500">
@@ -57,7 +57,7 @@ export function GoalOkrEditForm({
           <div className="mt-1 flex gap-1">
             {(
               [
-                ["near", "近期目标"],
+                ["near", "短期目标"],
                 ["long", "长期目标"],
               ] as const
             ).map(([k, label]) => (

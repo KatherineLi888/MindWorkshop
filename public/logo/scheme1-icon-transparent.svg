@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="Mind Workshop">
+  <path d="M8 22c0-5.5 4.5-10.5 9.5-10.5 2.5 0 4.6 1.1 6.2 2.8" stroke="#334155" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M12 14c1.5-3 4.5-4.5 7.5-3.8" stroke="#334155" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="13.5" cy="12.5" r="1.25" fill="#3B82F6"/>
+  <circle cx="19" cy="11" r="1.25" fill="#3B82F6"/>
+  <circle cx="23" cy="15.5" r="1.25" fill="#64748B"/>
+  <path d="M13.5 12.5l5.5-1.5M19 11l4.5 4.5" stroke="#94A3B8" stroke-width="1.1" stroke-linecap="round"/>
+</svg>

@@ -292,7 +292,7 @@ export const WIDGET_META: Record<
 };
 
 export const TIME_RANGE_LABELS: Record<TimeRange, string> = {
-  all: "全部时间",
+  all: "全部",
   today: "当日创建/更新",
   week: "本周创建/更新",
   month: "本月创建/更新",

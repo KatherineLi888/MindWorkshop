@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -47,12 +48,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isCloudEnabled()) return;
-    const sync = () =>
-      import("@/lib/migrate/local-to-cloud").then((m) => {
-        void m.hydrateFromCloud().then(() => {
-          window.dispatchEvent(new Event(CLOUD_SYNCED_EVENT));
-        });
-      });
+    const sync = async () => {
+      try {
+        const { hydrateFromCloud } = await import("@/lib/migrate/local-to-cloud");
+        await hydrateFromCloud();
+        window.dispatchEvent(new Event(CLOUD_SYNCED_EVENT));
+      } catch {
+        /* 云端同步失败不阻塞本地使用 */
+      }
+    };
     void sync();
     const onVisible = () => {
       if (document.visibilityState === "visible") void sync();
@@ -87,16 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             collapsed ? "justify-center px-2" : "justify-between px-4"
           )}
         >
-          {!collapsed && (
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold tracking-tight">
-                思绪工坊
-              </h1>
-              <p className="mt-0.5 text-[10px] text-slate-400">
-                Thought Workshop
-              </p>
-            </div>
-          )}
+          <Logo variant={collapsed ? "icon" : "lockup"} />
           <button
             type="button"
             onClick={toggleCollapsed}

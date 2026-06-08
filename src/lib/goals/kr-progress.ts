@@ -1,3 +1,9 @@
+import { normalizeRecurrence } from "./recurrence";
+import {
+  computeQualitativeKrProgress,
+  isQualitativeKr,
+  normalizeKrTasks,
+} from "./kr-tasks";
 import type { KeyResult, KrRecordMode } from "./types";
 
 export const KR_RECORD_MODE_LABELS: Record<
@@ -30,6 +36,9 @@ export function unitLabel(kr: KeyResult): string {
 
 /** 单条 KR 原始完成度（可超过 100） */
 export function computeKrRawCompletion(kr: KeyResult): number {
+  if (isQualitativeKr(kr)) {
+    return computeQualitativeKrProgress(kr);
+  }
   if (kr.recordMode === "set") {
     if (kr.valueDirection === "down") {
       const base = kr.baseline ?? kr.current;
@@ -60,17 +69,26 @@ export type KrProgressVisual = {
   barWidth: number;
   /** 允许超出且已超过目标 */
   isOverflow: boolean;
+  /** 定性 KR 任务全完成但仍可新增，100% 弱化展示 */
+  isSoftComplete: boolean;
 };
 
 export function getKrProgressVisual(kr: KeyResult): KrProgressVisual {
   const raw = computeKrRawCompletion(kr);
   const capped = Math.min(100, raw);
   const isOverflow = !!(kr.allowExceed && raw > 100);
+  let isSoftComplete = false;
+  if (isQualitativeKr(kr)) {
+    const tasks = (kr.tasks ?? []).filter((t) => t.title.trim());
+    isSoftComplete =
+      tasks.length > 0 && tasks.every((t) => t.completed) && capped >= 100;
+  }
   return {
     cappedCompletion: capped,
     displayPercent: isOverflow ? raw : capped,
     barWidth: isOverflow ? 100 : capped,
     isOverflow,
+    isSoftComplete,
   };
 }
 
@@ -88,6 +106,11 @@ export const KR_PROGRESS_BAR = {
 
 /** 预览用：完成情况（不含百分比，百分比单独展示） */
 export function formatKrProgressLine(kr: KeyResult): string {
+  if (isQualitativeKr(kr)) {
+    const tasks = (kr.tasks ?? []).filter((t) => t.title.trim());
+    const done = tasks.filter((t) => t.completed).length;
+    return tasks.length ? `任务 ${done}/${tasks.length} 已完成` : "添加子任务以追踪进度";
+  }
   const unit = unitLabel(kr);
 
   switch (kr.recordMode) {
@@ -204,20 +227,34 @@ export function normalizeKeyResult(
     current = Math.round((legacy.manualProgress / 100) * target);
   }
 
+  const tasks = normalizeKrTasks(raw.tasks);
+  const krKind: KeyResult["krKind"] =
+    raw.krKind === "qualitative" || tasks.length > 0
+      ? "qualitative"
+      : raw.krKind === "quantitative"
+        ? "quantitative"
+        : "quantitative";
+
   return {
     id: raw.id,
     title: raw.title ?? "",
-    target,
-    current,
-    unit,
+    krKind,
+    tasks: krKind === "qualitative" ? tasks : tasks.length ? tasks : undefined,
+    target: krKind === "qualitative" ? Math.max(1, tasks.length || 1) : target,
+    current:
+      krKind === "qualitative"
+        ? tasks.filter((t) => t.completed).length
+        : current,
+    unit: krKind === "qualitative" ? "项" : unit,
     weight: raw.weight ?? defaultWeight,
-    recordMode,
+    recordMode: krKind === "qualitative" ? "count" : recordMode,
     start_date: raw.start_date ?? null,
     due_date: raw.due_date ?? null,
     baseline: raw.baseline ?? null,
     valueDirection: raw.valueDirection ?? "up",
     allowExceed: raw.allowExceed ?? false,
     calendarKeyword: raw.calendarKeyword?.trim() || undefined,
+    recurrence: normalizeRecurrence(raw.recurrence),
   };
 }
 

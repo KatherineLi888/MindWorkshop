@@ -7,6 +7,8 @@ import { GoalActivityCalendar } from "@/components/goals/GoalActivityCalendar";
 import { KrLinkedPanels } from "@/components/goals/KrLinkedPanels";
 import { KrProgressBar, KrProgressPercent } from "@/components/goals/KrProgressBar";
 import { KrRecordDialog } from "@/components/goals/KrRecordDialog";
+import { KrTaskList } from "@/components/goals/KrTaskList";
+import { isQualitativeKr } from "@/lib/goals/kr-tasks";
 import {
   formatKrProgressLine,
   getKrProgressVisual,
@@ -43,10 +45,39 @@ export function KrDetail({ goal, kr, onBack, onUpdated }: Props) {
   const period = formatPeriodRange(draftKr.start_date, draftKr.due_date);
   const progressLine = formatKrProgressLine(draftKr);
   const time = computeTimeProgress(draftKr.start_date, draftKr.due_date);
+  const qualitative = isQualitativeKr(draftKr);
   const atTarget =
+    !qualitative &&
     draftKr.target > 0 &&
     draftKr.current >= draftKr.target &&
     !draftKr.allowExceed;
+
+  const saveTasks = async (tasks: NonNullable<KeyResult["tasks"]>) => {
+    const active = tasks.filter((t) => t.title.trim());
+    const done = active.filter((t) => t.completed).length;
+    const execution = {
+      ...goal.execution,
+      key_results: goal.execution.key_results.map((k) =>
+        k.id === draftKr.id
+          ? {
+              ...k,
+              tasks,
+              current: done,
+              target: Math.max(1, active.length || 1),
+            }
+          : k
+      ),
+    };
+    setSaving(true);
+    try {
+      const saved = await saveGoal({ ...goal, execution });
+      onUpdated(saved);
+      const updatedKr = execution.key_results.find((k) => k.id === draftKr.id);
+      if (updatedKr) setDraftKr(updatedKr);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleRecord = async (value: number) => {
     const execution = patchKrRecordWithLog(
@@ -92,31 +123,47 @@ export function KrDetail({ goal, kr, onBack, onUpdated }: Props) {
 
         <div className="mt-3 flex items-center gap-2">
           <KrProgressBar kr={draftKr} size="md" className="flex-1" />
-          <button
-            type="button"
-            title="新增记录"
-            disabled={
-              saving ||
-              (atTarget &&
-                (draftKr.recordMode === "count" ||
-                  draftKr.recordMode === "consume"))
-            }
-            onClick={() => setRecording(true)}
-            className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base leading-none transition active:scale-95",
-              atTarget &&
-                (draftKr.recordMode === "count" ||
-                  draftKr.recordMode === "consume")
-                ? "cursor-not-allowed bg-slate-200 text-slate-400"
-                : visual.isOverflow
-                  ? KR_PROGRESS_BAR.addBtnOverflow
-                  : KR_PROGRESS_BAR.addBtn
-            )}
-          >
-            +
-          </button>
+          {!qualitative && (
+            <button
+              type="button"
+              title="新增记录"
+              disabled={
+                saving ||
+                (atTarget &&
+                  (draftKr.recordMode === "count" ||
+                    draftKr.recordMode === "consume"))
+              }
+              onClick={() => setRecording(true)}
+              className={cn(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base leading-none transition active:scale-95",
+                atTarget &&
+                  (draftKr.recordMode === "count" ||
+                    draftKr.recordMode === "consume")
+                  ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                  : visual.isOverflow
+                    ? KR_PROGRESS_BAR.addBtnOverflow
+                    : KR_PROGRESS_BAR.addBtn
+              )}
+            >
+              +
+            </button>
+          )}
         </div>
       </Card>
+
+      {qualitative && (
+        <Card className="bg-white p-4">
+          <h3 className="text-sm font-medium text-slate-800">子任务</h3>
+          <p className="mt-0.5 text-[10px] text-slate-400">
+            勾选完成、设置日期，进度自动同步
+          </p>
+          <KrTaskList
+            className="mt-3"
+            tasks={draftKr.tasks ?? []}
+            onChange={(tasks) => void saveTasks(tasks)}
+          />
+        </Card>
+      )}
 
       <GoalActivityCalendar
         goalId={goal.id}

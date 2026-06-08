@@ -349,6 +349,34 @@ function afterTerminal(_current: string): "flow_confirm" {
   return "flow_confirm";
 }
 
+const VALUE_CUSTOM_KEYS = {
+  active_value: "active_value_custom",
+  passive_exchange: "passive_exchange_custom",
+} as const;
+
+export function hasMultiValueSelection(
+  answers: FlowAnswers,
+  step: "active_value" | "passive_exchange"
+): boolean {
+  const sel = (answers[step] as string[]) || [];
+  const custom = String(
+    answers[VALUE_CUSTOM_KEYS[step]] ?? ""
+  ).trim();
+  return sel.length > 0 || custom.length > 0;
+}
+
+export function valueSelectionLabels(
+  answers: FlowAnswers,
+  step: "active_value" | "passive_exchange",
+  optionLabels: Record<string, string>
+): string[] {
+  const sel = (answers[step] as string[]) || [];
+  const labels = sel.map((v) => optionLabels[v] ?? v);
+  const custom = String(answers[VALUE_CUSTOM_KEYS[step]] ?? "").trim();
+  if (custom) labels.push(custom);
+  return labels;
+}
+
 export function nextStepId(
   current: string,
   answers: FlowAnswers
@@ -360,14 +388,13 @@ export function nextStepId(
   }
 
   if (current === "active_value") {
-    const sel = (a.active_value as string[]) || [];
-    if (sel.length === 0) return "end_no_value_active";
+    if (!hasMultiValueSelection(a, "active_value")) return "end_no_value_active";
     return "exec_mode";
   }
 
   if (current === "passive_exchange") {
-    const sel = (a.passive_exchange as string[]) || [];
-    if (sel.length === 0) return "end_no_exchange";
+    if (!hasMultiValueSelection(a, "passive_exchange"))
+      return "end_no_exchange";
     return "exec_mode";
   }
 
@@ -422,13 +449,19 @@ export function buildPathSummary(answers: FlowAnswers): string {
   if (answers.origin === "active") parts.push("主动做");
   else if (answers.origin === "passive") parts.push("被委派");
 
-  if (answers.active_value) {
-    const sel = answers.active_value as string[];
-    parts.push(sel.length ? `价值:${sel.join("+")}` : "价值:放弃");
+  if (answers.active_value || answers.active_value_custom) {
+    const sel = (answers.active_value as string[]) || [];
+    const custom = String(answers.active_value_custom ?? "").trim();
+    const bits = [...sel];
+    if (custom) bits.push(custom);
+    parts.push(bits.length ? `价值:${bits.join("+")}` : "价值:放弃");
   }
-  if (answers.passive_exchange) {
-    const sel = answers.passive_exchange as string[];
-    parts.push(sel.length ? `交换:${sel.join("+")}` : "交换:放弃");
+  if (answers.passive_exchange || answers.passive_exchange_custom) {
+    const sel = (answers.passive_exchange as string[]) || [];
+    const custom = String(answers.passive_exchange_custom ?? "").trim();
+    const bits = [...sel];
+    if (custom) bits.push(custom);
+    parts.push(bits.length ? `交换:${bits.join("+")}` : "交换:放弃");
   }
   if (answers.exec_mode)
     parts.push(answers.exec_mode === "self" ? "自己执行" : "委派");
@@ -462,11 +495,11 @@ export function resolveFinalAction(
   lastStep: string
 ): string {
   if (lastStep === "end_no_value_active" || lastStep === "active_value") {
-    if (!(answers.active_value as string[])?.length)
+    if (!hasMultiValueSelection(answers, "active_value"))
       return "彻底放弃，不做";
   }
   if (lastStep === "end_no_exchange" || lastStep === "passive_exchange") {
-    if (!(answers.passive_exchange as string[])?.length)
+    if (!hasMultiValueSelection(answers, "passive_exchange"))
       return "没有交换价值，不做";
   }
   if (lastStep === "end_short_once" || answers.short_convert === "once")

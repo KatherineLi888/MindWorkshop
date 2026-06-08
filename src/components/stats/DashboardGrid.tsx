@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { ContextMenu } from "@/app/canvas/ContextMenu";
 import { renderWidgetView } from "@/components/stats/StatsWidgets";
 import type { DashboardStats } from "@/lib/stats/aggregate";
 import type { WidgetInstance } from "@/lib/stats/dashboard-config";
@@ -25,6 +26,7 @@ type Props = {
   onEdit: (instance: WidgetInstance) => void;
   onRemove: (instanceId: string) => void;
   onMove: (instances: WidgetInstance[]) => void;
+  onEnterEditMode?: () => void;
   viewScope?: ViewTimeScope | null;
 };
 
@@ -36,6 +38,7 @@ export function DashboardGrid({
   onEdit,
   onRemove,
   onMove,
+  onEnterEditMode,
   viewScope,
 }: Props) {
   const placed = useMemo(
@@ -47,6 +50,11 @@ export function DashboardGrid({
     [placed, editing]
   );
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [widgetMenu, setWidgetMenu] = useState<{
+    x: number;
+    y: number;
+    instance: WidgetInstance;
+  } | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
 
@@ -141,7 +149,16 @@ export function DashboardGrid({
               style={gridItemStyle(instance.row, instance.col, instance.size)}
               className={`relative min-h-[7.5rem] ${
                 isMoving ? "z-20 ring-2 ring-amber-400 ring-offset-2" : ""
-              }`}
+              } ${editing ? "ring-1 ring-[#BFDBFE]/60" : ""}`}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setWidgetMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  instance,
+                });
+              }}
               onPointerDown={
                 editing
                   ? () => startLongPress(instance.instanceId)
@@ -150,46 +167,10 @@ export function DashboardGrid({
               onPointerUp={editing ? clearPress : undefined}
               onPointerLeave={editing ? clearPress : undefined}
               onPointerCancel={editing ? clearPress : undefined}
-              onClick={
-                editing
-                  ? (e) => {
-                      if (longPressed.current) {
-                        e.preventDefault();
-                        longPressed.current = false;
-                        return;
-                      }
-                      if (!movingId) onEdit(instance);
-                    }
-                  : undefined
-              }
             >
               {editing && (
-                <div className="absolute -top-2 right-1 z-10 flex gap-1">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(instance);
-                    }}
-                    className="rounded-full bg-white px-2 py-0.5 text-[10px] text-[#1D4ED8] shadow ring-1 ring-[#BFDBFE] hover:bg-blue-50"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove(instance.instanceId);
-                    }}
-                    className="rounded-full bg-white px-2 py-0.5 text-[10px] text-red-600 shadow ring-1 ring-red-100 hover:bg-red-50"
-                  >
-                    删除
-                  </button>
-                </div>
-              )}
-              {editing && (
                 <p className="pointer-events-none absolute bottom-1 left-2 text-[9px] text-slate-400">
-                  长按拖动
+                  右键编辑 · 长按拖动
                 </p>
               )}
               <div className="h-full">
@@ -202,6 +183,45 @@ export function DashboardGrid({
           );
         })}
       </div>
+
+      {widgetMenu && (
+        <ContextMenu
+          x={widgetMenu.x}
+          y={widgetMenu.y}
+          onClose={() => setWidgetMenu(null)}
+          items={[
+            {
+              type: "action",
+              label: "编辑组件",
+              onClick: () => {
+                if (!editing) onEdit(widgetMenu.instance);
+                else onEdit(widgetMenu.instance);
+              },
+            },
+            ...(editing
+              ? [
+                  {
+                    type: "action" as const,
+                    label: "删除组件",
+                    danger: true,
+                    onClick: () => onRemove(widgetMenu.instance.instanceId),
+                  },
+                ]
+              : [
+                  {
+                    type: "action" as const,
+                    label: "编辑当前视图",
+                    onClick: () => onEnterEditMode?.(),
+                  },
+                  {
+                    type: "action" as const,
+                    label: "编辑组件",
+                    onClick: () => onEdit(widgetMenu.instance),
+                  },
+                ]),
+          ]}
+        />
+      )}
     </div>
   );
 }

@@ -34,6 +34,10 @@ type Props = {
   aggregateSubKrs?: boolean;
   title?: string;
   refreshKey?: number;
+  /** 默认展开，无需手动切换 */
+  defaultExpanded?: boolean;
+  /** 仅整月视图 */
+  monthOnly?: boolean;
 };
 
 function DayDetail({
@@ -96,8 +100,10 @@ export function GoalActivityCalendar({
   aggregateSubKrs = false,
   title = "完成日历",
   refreshKey = 0,
+  defaultExpanded = false,
+  monthOnly = false,
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [anchor, setAnchor] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -110,13 +116,17 @@ export function GoalActivityCalendar({
   const [entries, setEntries] = useState(loadEntries);
 
   useEffect(() => {
-    const suggested = suggestCalendarView(startDate, endDate);
-    const saved = loadCalendarViewPref(goalId, krId);
-    setViewMode(saved ?? suggested);
-    if (startDate) {
-      setAnchor(parseDateKey(startDate));
+    if (monthOnly) {
+      setViewMode("month");
+    } else {
+      const suggested = suggestCalendarView(startDate, endDate);
+      const saved = loadCalendarViewPref(goalId, krId);
+      setViewMode(saved ?? suggested);
+      if (startDate) {
+        setAnchor(parseDateKey(startDate));
+      }
     }
-  }, [goalId, krId, startDate, endDate]);
+  }, [goalId, krId, startDate, endDate, monthOnly]);
 
   useEffect(() => {
     setEntries(loadEntries());
@@ -159,27 +169,40 @@ export function GoalActivityCalendar({
     setSelectedDate(null);
   };
 
+  const showBody = defaultExpanded || expanded;
+
   return (
-    <div className="rounded-lg border border-[#EEF1F5] bg-[#FAFBFC]">
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
-      >
-        <span className="text-xs font-medium text-slate-700">
-          {title}
+    <div className="w-full rounded-lg border border-[#EEF1F5] bg-[#FAFBFC]">
+      {!defaultExpanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+        >
+          <span className="text-xs font-medium text-slate-700">
+            {title}
+            {entries.length > 0 && (
+              <span className="ml-1.5 text-[10px] font-normal text-slate-400">
+                {entries.length} 条记录
+              </span>
+            )}
+          </span>
+          <span className="text-[10px] text-slate-400">
+            {expanded ? "收起" : "展开"}
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <span className="text-xs font-medium text-slate-700">{title}</span>
           {entries.length > 0 && (
-            <span className="ml-1.5 text-[10px] font-normal text-slate-400">
+            <span className="text-[10px] text-slate-400">
               {entries.length} 条记录
             </span>
           )}
-        </span>
-        <span className="text-[10px] text-slate-400">
-          {expanded ? "收起" : "展开"}
-        </span>
-      </button>
+        </div>
+      )}
 
-      {expanded && (
+      {showBody && (
         <div className="space-y-3 border-t border-[#EEF1F5] px-3 pb-3 pt-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1">
@@ -201,28 +224,30 @@ export function GoalActivityCalendar({
                 ›
               </button>
             </div>
-            <div className="flex rounded-lg border border-[#E2E8F0] bg-white p-0.5">
-              {(
-                [
-                  ["month", "月"],
-                  ["week", "周"],
-                ] as const
-              ).map(([k, label]) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setMode(k)}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-[10px] transition",
-                    viewMode === k
-                      ? "bg-[#EFF6FF] font-medium text-[#1D4ED8]"
-                      : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  {label}视图
-                </button>
-              ))}
-            </div>
+            {!monthOnly && (
+              <div className="flex rounded-lg border border-[#E2E8F0] bg-white p-0.5">
+                {(
+                  [
+                    ["month", "月"],
+                    ["week", "周"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setMode(k)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-[10px] transition",
+                      viewMode === k
+                        ? "bg-[#EFF6FF] font-medium text-[#1D4ED8]"
+                        : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    {label}视图
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {viewMode === "month" ? (
@@ -273,11 +298,17 @@ export function GoalActivityCalendar({
                           >
                             {d.getDate()}
                           </span>
-                          {daySummary && (
+                          {daySummary ? (
                             <span className="mt-0.5 max-w-full truncate px-0.5 text-[8px] font-semibold text-emerald-600">
-                              {daySummary.label}
+                              {aggregateSubKrs && daySummary.byKr.length === 1
+                                ? daySummary.byKr[0].label
+                                : daySummary.label}
                             </span>
-                          )}
+                          ) : active ? (
+                            <span className="mt-0.5 text-[8px] text-slate-300">
+                              ○
+                            </span>
+                          ) : null}
                         </button>
                       );
                     })}

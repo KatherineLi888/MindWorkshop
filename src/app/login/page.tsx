@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -54,8 +55,8 @@ function LoginForm() {
 
   return (
     <Card className="w-full max-w-sm bg-white">
-      <h1 className="text-xl font-semibold">思绪工坊</h1>
-      <p className="mt-1 text-sm text-slate-500">登录以同步你的数据</p>
+      <Logo variant="lockup" className="h-9" />
+      <p className="mt-3 text-sm text-slate-500">登录以同步你的数据</p>
       <form onSubmit={submit} className="mt-6 space-y-3">
         <Input
           type="email"
@@ -77,6 +78,11 @@ function LoginForm() {
         <Button type="submit" variant="primary" className="w-full" disabled={loading}>
           {loading ? "登录中…" : "登录"}
         </Button>
+        <p className="text-right">
+          <Link href="/forgot-password" className="text-xs text-[#3B82F6]">
+            忘记密码？
+          </Link>
+        </p>
       </form>
       <p className="mt-4 text-center text-xs text-slate-500">
         没有账号？{" "}

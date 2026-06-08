@@ -1,8 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { useParams } from "next/navigation";
+import { BackNavButton } from "@/components/layout/BackNavButton";
+import { PHASE_ICONS } from "@/lib/seeds/overview-stats";
+import { seedOriginLabel } from "@/lib/seeds/origin";
+import { SeedTimelineViews } from "@/components/seeds/SeedTimelineViews";
 import { Card } from "@/components/ui/card";
 import {
   seedBoardMeta,
@@ -11,9 +15,10 @@ import {
   isGoalPlanSeed,
   GOAL_PLAN_SEED_MARKER,
 } from "@/lib/seeds/classify";
-import { buildEventSummary } from "@/lib/seeds/event-summary";
-import { seedStageLabel, SEED_ACTION_LABELS } from "@/lib/seeds/labels";
-import { seedEntityHref } from "@/lib/seeds/resolve-href";
+import { loadEntityBirthContent } from "@/lib/seeds/entity-content";
+import { birthEvent, birthLocationFull } from "@/lib/seeds/origin";
+import { seedDisplayTitle } from "@/lib/seeds/naming";
+import { seedStageLabel } from "@/lib/seeds/labels";
 import type { IdeaSeed } from "@/lib/seeds/types";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -32,31 +37,62 @@ const STAGE_DOT: Record<string, string> = {
 };
 
 export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
-  const router = useRouter();
+  const params = useParams();
+  const id = typeof params.id === "string" ? params.id : seed.id;
+  const returnTo = `/seeds/${id}`;
   const meta = seedBoardMeta(seed);
   const stages = distinctStages(seed);
   const goalPlan = isGoalPlanSeed(seed);
+  const born = birthEvent(seed);
+  const [birthContent, setBirthContent] = useState("");
+
+  useEffect(() => {
+    if (!born) return;
+    let alive = true;
+    void loadEntityBirthContent(born).then((text) => {
+      if (alive) setBirthContent(text);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [born?.id]);
 
   return (
     <div className="space-y-4 p-4 lg:p-6">
-      <Button variant="ghost" size="sm" onClick={() => router.push("/seeds")}>
-        ← 返回种子看板
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <BackNavButton />
+        <Link
+          href="/seeds"
+          className="text-xs text-slate-500 hover:text-slate-700 hover:underline"
+        >
+          种子看板
+        </Link>
+      </div>
 
       <Card className="bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold text-slate-900">{seed.title}</h1>
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+              <span aria-hidden>{PHASE_ICONS[meta.phase]}</span>
+              {SEED_PHASE_LABELS[meta.phase]}
+            </p>
+            <h1 className="mt-1 text-lg font-semibold text-slate-900">
+              {seedDisplayTitle(seed.title)}
+            </h1>
             <p className="mt-1 text-xs text-slate-500">
-              诞生于 {formatDate(seed.createdAt)} · 最近更新{" "}
+              创建于 {formatDate(seed.createdAt)} · 更新于{" "}
               {formatDate(seed.updatedAt)}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              来源 · {seedOriginLabel(seed)}
             </p>
           </div>
           <div className="text-right">
             <span
               className={cn(
                 "inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ring-1",
-                meta.phase === "sprouting" && "bg-lime-50 text-lime-800 ring-lime-200",
+                meta.phase === "sprouting" &&
+                  "bg-lime-50 text-lime-800 ring-lime-200",
                 meta.phase === "growing" &&
                   "bg-emerald-50 text-emerald-700 ring-emerald-200",
                 meta.phase === "archived" &&
@@ -66,13 +102,29 @@ export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
               {SEED_PHASE_LABELS[meta.phase]}
             </span>
             <p className="mt-1 text-[10px] tabular-nums text-slate-500">
-              {meta.stageCount} 个阶段 · 当前 {meta.currentStageLabel}
+              {meta.stageCount} 个阶段 · {meta.currentStageLabel}
               {goalPlan && meta.phase !== "archived" && (
-                <span className="ml-1 text-violet-600">· {GOAL_PLAN_SEED_MARKER}</span>
+                <span className="ml-1 text-violet-600">
+                  · {GOAL_PLAN_SEED_MARKER}
+                </span>
               )}
             </p>
           </div>
         </div>
+
+        {born && (
+          <div className="mt-4 rounded-lg border border-[#EEF1F5] bg-[#FAFBFC] p-3">
+            <p className="text-[10px] font-medium text-slate-500">诞生信息</p>
+            <p className="mt-1 text-xs text-slate-800">
+              在「{birthLocationFull(seed)}」诞生
+            </p>
+            {birthContent && (
+              <p className="mt-2 whitespace-pre-wrap text-[11px] leading-relaxed text-slate-600">
+                {birthContent}
+              </p>
+            )}
+          </div>
+        )}
 
         {stages.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
@@ -102,63 +154,7 @@ export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
       </Card>
 
       <Card className="bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-800">阶段与时间线</h2>
-        <p className="mt-0.5 text-[10px] text-slate-400">
-          每个时间点发生了什么，可跳转查看当时的记录
-        </p>
-
-        <ul className="mt-4 space-y-0">
-          {seed.events.map((ev, i) => {
-            const href = seedEntityHref(ev.entityType, ev.entityId);
-            const prev = i > 0 ? seed.events[i - 1] : undefined;
-            const summary = buildEventSummary(ev, prev);
-            const isLast = i === seed.events.length - 1;
-
-            return (
-              <li key={ev.id} className="relative flex gap-4 pb-6">
-                {!isLast && (
-                  <span
-                    className="absolute left-[11px] top-5 bottom-0 w-px bg-[#E2E8F0]"
-                    aria-hidden
-                  />
-                )}
-                <span
-                  className={cn(
-                    "relative z-10 mt-1 h-6 w-6 shrink-0 rounded-full ring-2 ring-white",
-                    STAGE_DOT[ev.stage] ?? "bg-slate-300"
-                  )}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1 border-b border-[#F1F5F9] pb-4 last:border-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div>
-                      <span className="text-sm font-medium text-slate-800">
-                        {seedStageLabel(ev.stage)}
-                      </span>
-                      <span className="ml-2 text-[10px] text-slate-400">
-                        {SEED_ACTION_LABELS[ev.action]}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">
-                      {formatDate(ev.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                    {summary}
-                  </p>
-                  {href && (
-                    <Link
-                      href={href}
-                      className="mt-2 inline-block text-[11px] text-[#1D4ED8] hover:underline"
-                    >
-                      查看此时记录 →
-                    </Link>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <SeedTimelineViews seed={seed} returnTo={returnTo} />
       </Card>
     </div>
   );

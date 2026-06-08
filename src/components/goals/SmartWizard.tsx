@@ -82,7 +82,7 @@ export function SmartWizard({ title, goalType, onComplete, onCancel }: Props) {
   return (
     <Card className="mx-auto max-w-lg bg-white">
       <p className="text-xs text-slate-400">
-        {goalType === "near" ? "近期目标" : "长期目标"} · {title}
+        {goalType === "near" ? "短期目标" : "长期目标"} · {title}
       </p>
       <p className="mt-1 text-xs text-slate-400">
         步骤 {step + 1} / {FIELDS.length}

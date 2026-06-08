@@ -11,6 +11,7 @@ import {
   buildDecisionRow,
   loadAllDecisions,
   persistDecision,
+  saveDecisionDraft,
   setDecisionArchived,
 } from "@/lib/decisions/storage";
 import { createClient, isCloudEnabled } from "@/lib/supabase/client";
@@ -29,6 +30,10 @@ import { Input } from "@/components/ui/input";
 import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { LinkEntityDialog } from "@/components/shared/LinkEntityDialog";
 import { FlowListContextMenu } from "@/components/flow/FlowListContextMenu";
+import {
+  TrackProblemWizardDialog,
+  type TrackWizardPreset,
+} from "@/components/track/TrackProblemWizardDialog";
 import { OriginFlashPanel } from "@/components/shared/OriginFlashPanel";
 import {
   linkInboxJumpTarget,
@@ -65,6 +70,9 @@ export function DecisionsClient({
     x: number;
     y: number;
   } | null>(null);
+  const [trackWizardOpen, setTrackWizardOpen] = useState(false);
+  const [trackPreset, setTrackPreset] = useState<TrackWizardPreset>({});
+  const [flowDraftId, setFlowDraftId] = useState(() => crypto.randomUUID());
   const searchParams = useSearchParams();
   const triageId = searchParams.get("triage");
 
@@ -107,9 +115,10 @@ export function DecisionsClient({
 
   const pool = useMemo(
     () =>
-      list.filter((d) =>
-        archiveBox ? d.archived_at != null : d.archived_at == null
-      ),
+      list.filter((d) => {
+        if (d.flow_confirmed === false) return false;
+        return archiveBox ? d.archived_at != null : d.archived_at == null;
+      }),
     [list, archiveBox]
   );
 
@@ -133,7 +142,34 @@ export function DecisionsClient({
 
   const startFlow = () => {
     if (!title.trim()) return;
+    setFlowDraftId(crypto.randomUUID());
     setMode("flow");
+  };
+
+  const autosaveFlowDraft = async (answers: FlowAnswers) => {
+    if (!title.trim()) return;
+    let userId = "local";
+    if (isCloudEnabled()) {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      userId = user.id;
+    }
+    const source =
+      answers.origin === "passive" ? ("passive" as const) : ("active" as const);
+    try {
+      await saveDecisionDraft({
+        id: flowDraftId,
+        user_id: userId,
+        title: title.trim(),
+        answers,
+        source,
+      });
+    } catch {
+      /* 草稿保存失败不阻断流程 */
+    }
   };
 
   const saveDecision = async (payload: {
@@ -146,7 +182,7 @@ export function DecisionsClient({
   }) => {
     const tags = computeDecisionTags(payload.answers);
     const row = buildDecisionRow({
-      id: crypto.randomUUID(),
+      id: flowDraftId,
       user_id: "local",
       title: title.trim(),
       source: payload.source,
@@ -176,25 +212,25 @@ export function DecisionsClient({
       row.archived_at = new Date().toISOString();
     }
 
-    if (!isCloudEnabled()) {
-      await persistDecision(row);
-      if (triageId) patchTriageTarget(triageId, "decision", row.id);
+    try {
+      if (isCloudEnabled()) {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        row.user_id = user.id;
+      }
+      row.flow_confirmed = true;
+      const savedId = await persistDecision(row);
+      if (triageId) patchTriageTarget(triageId, "decision", savedId);
       setTitle("");
       setMode("list");
+      setFlowDraftId(crypto.randomUUID());
       await load();
-      return;
+    } catch {
+      /* 保存失败时保留流程状态 */
     }
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    row.user_id = user.id;
-    await persistDecision(row);
-    setTitle("");
-    setMode("list");
-    load();
   };
 
   const toggleArchive = async (id: string, archive: boolean) => {
@@ -228,6 +264,7 @@ export function DecisionsClient({
         <DecisionFlow
           title={title}
           onComplete={saveDecision}
+          onAutosave={autosaveFlowDraft}
           onCancel={() => setMode("new")}
         />
       </div>
@@ -328,6 +365,13 @@ export function DecisionsClient({
     return (
       <div className="space-y-4" onClick={() => setContextMenu(null)}>
         {listContent}
+        <TrackProblemWizardDialog
+          open={trackWizardOpen}
+          preset={trackPreset}
+          onClose={() => setTrackWizardOpen(false)}
+          onSaved={() => setTrackWizardOpen(false)}
+        />
+
         {contextMenu && (
           <DecisionContextMenu
             archiveBox={archiveBox}
@@ -335,6 +379,14 @@ export function DecisionsClient({
             onUnarchive={() => toggleArchive(contextMenu.row.id, false)}
             onArchive={() => toggleArchive(contextMenu.row.id, true)}
             onClose={() => setContextMenu(null)}
+            onAddTrack={() => {
+              setTrackPreset({
+                anchorType: "decision",
+                anchorId: contextMenu.row.id,
+              });
+              setTrackWizardOpen(true);
+              setContextMenu(null);
+            }}
           />
         )}
       </div>
@@ -396,6 +448,13 @@ export function DecisionsClient({
 
       {(mode === "list" || archiveBox) && listContent}
 
+      <TrackProblemWizardDialog
+        open={trackWizardOpen}
+        preset={trackPreset}
+        onClose={() => setTrackWizardOpen(false)}
+        onSaved={() => setTrackWizardOpen(false)}
+      />
+
       {contextMenu && (
         <DecisionContextMenu
           archiveBox={archiveBox}
@@ -403,6 +462,14 @@ export function DecisionsClient({
           onUnarchive={() => toggleArchive(contextMenu.row.id, false)}
           onArchive={() => toggleArchive(contextMenu.row.id, true)}
           onClose={() => setContextMenu(null)}
+          onAddTrack={() => {
+            setTrackPreset({
+              anchorType: "decision",
+              anchorId: contextMenu.row.id,
+            });
+            setTrackWizardOpen(true);
+            setContextMenu(null);
+          }}
         />
       )}
     </div>
@@ -415,12 +482,14 @@ function DecisionContextMenu({
   onArchive,
   onUnarchive,
   onClose,
+  onAddTrack,
 }: {
   archiveBox: boolean;
   contextMenu: { row: DecisionRow; x: number; y: number };
   onArchive: () => void;
   onUnarchive: () => void;
   onClose: () => void;
+  onAddTrack?: () => void;
 }) {
   const { row, x, y } = contextMenu;
   const archiveItem = archiveBox
@@ -445,6 +514,7 @@ function DecisionContextMenu({
       onClose={onClose}
       excludeStages={archiveBox || row.tag_outcome === "abandon" ? ["goals", "track"] : []}
       extraItems={[archiveItem]}
+      onAddTrack={onAddTrack}
     />
   );
 }

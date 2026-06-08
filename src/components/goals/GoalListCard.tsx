@@ -12,15 +12,17 @@ import {
   patchQuantityRecordWithLog,
 } from "@/lib/goals/record";
 import { saveGoal, type GoalWithMeta } from "@/lib/goals/storage";
+import { normalizeExecution } from "@/lib/goals/types";
 import type { GoalChallenge } from "@/lib/goals/challenges";
 import { formatPeriodRange } from "@/lib/goals/time-progress";
 import { TimeProgressBar } from "@/components/goals/TimeProgressBar";
 import { goalUnitContext } from "@/lib/goals/time-gap-units";
 import { resolveProgressVisual } from "@/lib/goals/progress-visual";
+import { useLongPress } from "@/hooks/useLongPress";
 import { cn } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
-  near: "近期",
+  near: "短期",
   long: "长期",
   pending: "待定",
 };
@@ -48,6 +50,8 @@ export function GoalListCard({
   onUpdated,
 }: Props) {
   const [recordingKrId, setRecordingKrId] = useState<string | null>(null);
+  const [expandedQualKrId, setExpandedQualKrId] = useState<string | null>(null);
+  const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const krs = goal.execution.key_results;
@@ -76,6 +80,41 @@ export function GoalListCard({
     setRecordingKrId(null);
   };
 
+  const toggleQualTask = async (
+    krId: string,
+    taskId: string,
+    completed: boolean
+  ) => {
+    setSavingTaskId(taskId);
+    try {
+      const execution = normalizeExecution({
+        ...goal.execution,
+        key_results: goal.execution.key_results.map((kr) => {
+          if (kr.id !== krId) return kr;
+          const tasks = (kr.tasks ?? []).map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  completed,
+                  completed_at: completed ? new Date().toISOString() : null,
+                }
+              : t
+          );
+          const done = tasks.filter((t) => t.completed).length;
+          return {
+            ...kr,
+            tasks,
+            current: done,
+            target: Math.max(1, tasks.filter((t) => t.title.trim()).length),
+          };
+        }),
+      });
+      await persistExecution(execution);
+    } finally {
+      setSavingTaskId(null);
+    }
+  };
+
   const handleQuantityAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (saving) return;
@@ -98,26 +137,45 @@ export function GoalListCard({
     goal.execution.due_date
   );
 
+  const longPress = useLongPress({
+    onLongPress: (e) => {
+      if (goal.goal_type === "pending" || goal.progress >= 100) return;
+      const touch = "touches" in e && e.touches[0] ? e.touches[0] : null;
+      if (!touch) return;
+      onContextMenu({
+        preventDefault: () => {},
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+      } as React.MouseEvent);
+    },
+    onContextMenu,
+  });
+
   return (
     <li
       className={cn(
         "overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] transition-colors hover:border-[#3B82F6]/40 hover:bg-white",
         saving && "opacity-80"
       )}
+      {...longPress.handlers}
     >
       <div className="flex items-start gap-2 px-3 pt-3">
-        <button
-          type="button"
-          onClick={onOpenDetail}
+        <div
+          className="min-w-0 flex-1"
           onContextMenu={onContextMenu}
-          className="min-w-0 flex-1 text-left"
         >
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm font-medium text-slate-900">
-              {goal.title}
-            </span>
-            <GoalSeedBadge entityId={goal.id} title={goal.title} />
-          </div>
+          <button
+            type="button"
+            onClick={() => onOpenDetail()}
+            className="text-left"
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-sm font-medium text-slate-900 transition hover:text-[#3B82F6]">
+                {goal.title}
+              </span>
+              <GoalSeedBadge entityId={goal.id} title={goal.title} />
+            </div>
+          </button>
           <p className="mt-0.5 truncate text-xs text-slate-500">
             {period ?? "未设置周期"}
             {countLabel && (
@@ -131,7 +189,7 @@ export function GoalListCard({
                 : `${activeChallenges.length} 个挑战进行中`}
             </p>
           )}
-        </button>
+        </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1">
           <p
@@ -219,7 +277,16 @@ export function GoalListCard({
         <GoalKrListPreview
           keyResults={krs}
           expanded={expanded}
+          expandedQualKrId={expandedQualKrId}
           onToggle={onToggleExpand}
+          onToggleQualKr={(krId, e) => {
+            e.stopPropagation();
+            setExpandedQualKrId((cur) => (cur === krId ? null : krId));
+          }}
+          onToggleTask={(krId, taskId, completed) =>
+            void toggleQualTask(krId, taskId, completed)
+          }
+          savingTaskId={savingTaskId}
           onOpenKr={
             onOpenKrDetail
               ? (krId, e) => {

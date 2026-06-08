@@ -1,5 +1,4 @@
-import { loadLocal, saveLocal, LOCAL_KEYS } from "@/lib/local-store";
-import { registerFlowEntry } from "@/lib/flow/pipeline-storage";
+import { saveTrackProblem } from "./save-problem";
 import type { GraphNodeRow } from "@/types/database";
 
 type CreateProblemInput = {
@@ -8,34 +7,19 @@ type CreateProblemInput = {
   anchorId: string;
   problemFocus?: string;
   solutionApproach?: string;
+  resolutionPlan?: string;
   background?: string;
 };
 
-export function createLocalTrackProblem(
+export async function createLocalTrackProblem(
   input: CreateProblemInput
-): GraphNodeRow {
-  const now = new Date().toISOString();
-  const row: GraphNodeRow = {
-    id: crypto.randomUUID(),
-    user_id: "local",
-    title: input.title.trim(),
-    node_type: "problem",
-    background: input.background ?? "",
-    problem_focus: input.problemFocus?.trim() || input.title.trim(),
-    solution_approach: input.solutionApproach?.trim() ?? "",
-    anchor_type: input.anchorType,
-    anchor_id: input.anchorId,
-    resolved: false,
-    loopback_target: null,
-    status: "tracking",
-    position_x: 0,
-    position_y: 0,
-    created_at: now,
-    updated_at: now,
-  };
-
-  const prev = loadLocal<GraphNodeRow[]>(LOCAL_KEYS.graphNodes, []);
-  saveLocal(LOCAL_KEYS.graphNodes, [...prev, row]);
-  registerFlowEntry("graph_node", row.id, "track");
-  return row;
+): Promise<GraphNodeRow> {
+  return saveTrackProblem({
+    problemFocus: input.problemFocus?.trim() || input.title.trim(),
+    solutionApproach: input.solutionApproach?.trim() ?? "",
+    resolutionPlan: input.resolutionPlan?.trim() ?? "",
+    anchorType: input.anchorType,
+    anchorId: input.anchorId,
+    background: input.background,
+  });
 }

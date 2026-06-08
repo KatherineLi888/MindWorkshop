@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { ContextMenu } from "@/app/canvas/ContextMenu";
+import { AddDashboardViewDialog } from "@/components/stats/AddDashboardViewDialog";
 import { DashboardEditBar } from "@/components/stats/DashboardEditBar";
+import { DashboardActiveGoals } from "@/components/stats/DashboardActiveGoals";
+import { DashboardFunnelPanel } from "@/components/stats/DashboardFunnelPanel";
 import { DashboardGrid } from "@/components/stats/DashboardGrid";
+import { DashboardKpiRow } from "@/components/stats/DashboardKpiRow";
+import { DashboardTodayFeed } from "@/components/stats/DashboardTodayFeed";
 import { DashboardViewSwitcher } from "@/components/stats/DashboardViewSwitcher";
 import { WidgetComposer } from "@/components/stats/WidgetComposer";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
-import { Button } from "@/components/ui/button";
-import { AUTH_ENABLED } from "@/lib/config";
 import { loadDashboardStats, type DashboardStats } from "@/lib/stats/aggregate";
 import {
   cloneLayout,
@@ -21,7 +22,6 @@ import {
   loadDashboardViews,
   saveDashboardViews,
   updateActiveViewLayout,
-  viewTimeLabel,
   viewTimeScope,
   type DashboardViewsStore,
 } from "@/lib/stats/dashboard-views";
@@ -31,16 +31,17 @@ import {
   insertInstanceAt,
   type GridAnchor,
 } from "@/lib/stats/grid-layout";
+import {
+  firstEmptyAnchor,
+  layoutForBuiltinView,
+} from "@/lib/stats/period-layouts";
 
 export function StatsDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [viewsStore, setViewsStore] = useState<DashboardViewsStore>(() =>
     loadDashboardViews()
   );
-  const activeView = useMemo(
-    () => getActiveView(viewsStore),
-    [viewsStore]
-  );
+  const activeView = useMemo(() => getActiveView(viewsStore), [viewsStore]);
   const [savedLayout, setSavedLayout] = useState<DashboardLayout>(() =>
     cloneLayout(activeView.layout)
   );
@@ -48,15 +49,19 @@ export function StatsDashboard() {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [addViewOpen, setAddViewOpen] = useState(false);
   const [editingInstance, setEditingInstance] = useState<WidgetInstance | null>(
     null
   );
   const [addAnchor, setAddAnchor] = useState<GridAnchor | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
-  const viewScope = useMemo(
-    () => viewTimeScope(activeView),
-    [activeView]
-  );
+  const viewScope = useMemo(() => viewTimeScope(activeView), [activeView]);
+  const isDayLayout = activeView.timePreset === "today";
+  const showFunnel = !isDayLayout;
 
   const displayLayout = editing && draftLayout ? draftLayout : savedLayout;
   const placedInstances = useMemo(
@@ -79,9 +84,7 @@ export function StatsDashboard() {
   }, []);
 
   const persistViews = (next: DashboardViewsStore, layout?: DashboardLayout) => {
-    const withLayout = layout
-      ? updateActiveViewLayout(next, layout)
-      : next;
+    const withLayout = layout ? updateActiveViewLayout(next, layout) : next;
     saveDashboardViews(withLayout);
     setViewsStore(withLayout);
     if (layout) setSavedLayout(cloneLayout(layout));
@@ -95,24 +98,8 @@ export function StatsDashboard() {
     setSavedLayout(cloneLayout(view.layout));
   };
 
-  const exportRows = useMemo(() => {
-    if (!stats) return [];
-    return [
-      { 指标: "进行中决策", 数值: stats.kpis.decisions },
-      { 指标: "推进中目标", 数值: stats.kpis.activeGoals },
-      { 指标: "思考会话", 数值: stats.kpis.thinkingSessions },
-      { 指标: "模型套用", 数值: stats.kpis.modelApplies },
-      { 指标: "画布文档", 数值: stats.kpis.canvasDocs },
-      { 指标: "图谱节点", 数值: stats.kpis.graphNodes },
-      { 指标: "收集箱", 数值: stats.kpis.inboxItems },
-      ...stats.goalProgress.map((g) => ({
-        指标: `目标·${g.name}`,
-        数值: `${g.progress}%`,
-      })),
-    ];
-  }, [stats]);
-
   const startEdit = () => {
+    if (isDayLayout) return;
     setDraftLayout(cloneLayout(savedLayout));
     setEditing(true);
   };
@@ -140,46 +127,61 @@ export function StatsDashboard() {
     closeComposer();
   };
 
-  const openAddAt = (anchor: GridAnchor) => {
+  const openAddWidget = (anchor?: GridAnchor) => {
+    if (isDayLayout) return;
+    if (!editing) {
+      setDraftLayout(cloneLayout(savedLayout));
+      setEditing(true);
+    }
+    const layout = draftLayout ?? savedLayout;
     setEditingInstance(null);
-    setAddAnchor(anchor);
+    setAddAnchor(anchor ?? firstEmptyAnchor(layout));
     setComposerOpen(true);
   };
 
   const openEdit = (instance: WidgetInstance) => {
+    if (!draftLayout) setDraftLayout(cloneLayout(savedLayout));
+    if (!editing) setEditing(true);
     setEditingInstance(instance);
     setAddAnchor(null);
     setComposerOpen(true);
   };
 
   const saveInstance = (instance: WidgetInstance) => {
-    if (!draftLayout) return;
-    const idx = draftLayout.instances.findIndex(
+    const base = draftLayout ?? cloneLayout(savedLayout);
+    const idx = base.instances.findIndex(
       (i) => i.instanceId === instance.instanceId
     );
     if (idx >= 0) {
-      const instances = [...draftLayout.instances];
+      const instances = [...base.instances];
       instances[idx] = instance;
       setDraftLayout({ instances });
+      if (!editing) setEditing(true);
       return;
     }
     if (addAnchor) {
-      const next = insertInstanceAt(
-        draftLayout.instances,
-        instance,
-        addAnchor
-      );
-      if (next) setDraftLayout({ instances: next });
+      const next = insertInstanceAt(base.instances, instance, addAnchor);
+      if (next) {
+        setDraftLayout({ instances: next });
+        if (!editing) setEditing(true);
+      }
     }
   };
 
   const removeInstance = (instanceId: string) => {
-    if (!draftLayout) return;
+    const base = draftLayout ?? cloneLayout(savedLayout);
     setDraftLayout({
       instances: compactEmptyRows(
-        draftLayout.instances.filter((i) => i.instanceId !== instanceId)
+        base.instances.filter((i) => i.instanceId !== instanceId)
       ),
     });
+    if (!editing) setEditing(true);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (e.button !== 2) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
   if (loading || !stats) {
@@ -190,99 +192,138 @@ export function StatsDashboard() {
     );
   }
 
-  const hasVisible = placedInstances.length > 0;
-
   return (
     <div
-      className={`mx-auto max-w-7xl space-y-6 p-4 lg:p-6 ${editing ? "pb-36 md:pb-28" : ""}`}
+      className={`mx-auto max-w-7xl space-y-4 bg-[#F8FAFC] p-4 lg:space-y-5 lg:p-6 ${editing ? "pb-36 md:pb-28" : ""}`}
+      onContextMenu={handleContextMenu}
+      onClick={() => setContextMenu(null)}
     >
-      <PageHeader
-        title="统计仪表盘"
-        description={
-          editing
-            ? `正在编辑「${activeView.label}」· 点格子「+」添加组件`
-            : `${activeView.label} · ${viewTimeLabel(activeView)} · ${placedInstances.length} 个组件${!AUTH_ENABLED ? "（本地模式）" : ""}`
-        }
-        actions={
-          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-            <Link
-              href="/home/funnel"
-              className="text-xs text-[#3B82F6] hover:underline"
-            >
-              流程漏斗 →
-            </Link>
-            <DashboardViewSwitcher
-              store={viewsStore}
-              disabled={editing}
-              onChange={handleSwitchView}
-            />
-            {editing ? (
-              <span className="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-[10px] font-medium text-[#1D4ED8]">
-                编辑中
-              </span>
-            ) : (
-              <>
-                <Button size="sm" variant="secondary" onClick={startEdit}>
-                  编辑组件
-                </Button>
-                <ExportExcelButton
-                  rows={exportRows}
-                  fileName={`stats-${activeView.id}.xlsx`}
-                />
-              </>
-            )}
-          </div>
-        }
-      />
-
-      {!hasVisible && !editing ? (
-        <div className="rounded-xl border border-dashed border-[#E2E8F0] py-20 text-center">
-          <p className="text-sm text-slate-500">
-            「{activeView.label}」还没有组件
-          </p>
-          <Button
-            className="mt-3"
-            size="sm"
-            variant="primary"
-            onClick={startEdit}
-          >
-            开始布置
-          </Button>
-        </div>
-      ) : (
-        <DashboardGrid
-          instances={placedInstances}
-          stats={stats}
-          editing={editing}
-          viewScope={viewScope}
-          onAddAt={openAddAt}
-          onEdit={openEdit}
-          onRemove={removeInstance}
-          onMove={(instances) => {
-            if (draftLayout) setDraftLayout({ instances });
-          }}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-lg font-semibold tracking-tight text-slate-800">
+          统计仪表盘
+        </h1>
+        <DashboardViewSwitcher
+          store={viewsStore}
+          disabled={editing}
+          onChange={handleSwitchView}
         />
+      </div>
+
+      <DashboardKpiRow stats={stats} />
+
+      <div className="border-t border-[#EEF1F5] pt-4" />
+
+      {isDayLayout && (
+        <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
+          <DashboardActiveGoals goals={stats.raw.goals} />
+          <DashboardTodayFeed stats={stats} scope={viewScope} />
+        </div>
+      )}
+
+      {showFunnel && (
+        <div className="space-y-5">
+          <DashboardFunnelPanel />
+
+          {placedInstances.length === 0 && !editing ? (
+            <div
+              className="rounded-xl border border-dashed border-[#E2E8F0] bg-white py-12 text-center"
+              onContextMenu={handleContextMenu}
+            >
+              <p className="text-sm text-slate-500">
+                右键可编辑当前视图或新增视图标签
+              </p>
+            </div>
+          ) : (
+            <DashboardGrid
+              instances={placedInstances}
+              stats={stats}
+              editing={editing}
+              viewScope={viewScope}
+              onAddAt={openAddWidget}
+              onEdit={openEdit}
+              onRemove={removeInstance}
+              onEnterEditMode={startEdit}
+              onMove={(instances) => {
+                setDraftLayout({ instances });
+                if (!editing) setEditing(true);
+              }}
+            />
+          )}
+        </div>
       )}
 
       {editing && draftLayout && (
         <DashboardEditBar
           onReset={() =>
-            setDraftLayout(cloneLayout(getActiveView(viewsStore).layout))
+            setDraftLayout(
+              cloneLayout(
+                layoutForBuiltinView(
+                  activeView.builtin ? activeView.id : "week"
+                )
+              )
+            )
           }
           onCancel={cancelEdit}
           onDone={finishEdit}
         />
       )}
 
-      {composerOpen && stats && draftLayout && (
+      {composerOpen && stats && (draftLayout || savedLayout) && (
         <WidgetComposer
           stats={stats}
           initial={editingInstance}
           anchor={addAnchor}
-          layoutInstances={draftLayout.instances}
+          layoutInstances={(draftLayout ?? savedLayout).instances}
           viewScope={viewScope}
           onSave={saveInstance}
           onClose={closeComposer}
+        />
+      )}
+
+      {addViewOpen && (
+        <AddDashboardViewDialog
+          store={viewsStore}
+          onSave={(next) => {
+            const view = getActiveView(next);
+            persistViews(next);
+            setSavedLayout(cloneLayout(view.layout));
+          }}
+          onClose={() => setAddViewOpen(false)}
+        />
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              type: "action",
+              label: "编辑当前视图",
+              onClick: () => startEdit(),
+            },
+            {
+              type: "action",
+              label: "新增视图",
+              onClick: () => setAddViewOpen(true),
+            },
+            ...(editing
+              ? [
+                  { type: "separator" as const },
+                  {
+                    type: "action" as const,
+                    label: "完成编辑",
+                    onClick: () => finishEdit(),
+                  },
+                  {
+                    type: "action" as const,
+                    label: "取消编辑",
+                    onClick: () => cancelEdit(),
+                  },
+                ]
+              : []),
+          ]}
         />
       )}
     </div>

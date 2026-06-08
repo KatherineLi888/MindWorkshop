@@ -153,53 +153,67 @@ export function buildNewGoal(input: {
   };
 }
 
-export async function persistNewGoal(goal: GoalWithMeta): Promise<void> {
+export async function persistNewGoal(
+  goal: GoalWithMeta
+): Promise<string | null> {
+  const row = {
+    ...goal,
+    execution: normalizeExecution(goal.execution),
+    smart_versions: goal.smart_versions ?? [goal.smart_current],
+  } as GoalRow & { smart_versions?: SmartFields[] };
+
   if (!isCloudEnabled()) {
     const prev = loadLocal<GoalRow[]>(LOCAL_KEYS.goals, []);
-    saveLocal(LOCAL_KEYS.goals, [
-      {
-        ...goal,
-        execution: goal.execution,
-        smart_versions: goal.smart_versions ?? [goal.smart_current],
-      } as GoalRow & { smart_versions?: SmartFields[] },
-      ...prev,
-    ]);
+    const exists = prev.some((g) => g.id === goal.id);
+    saveLocal(LOCAL_KEYS.goals, exists ? prev.map((g) => (g.id === goal.id ? row : g)) : [row, ...prev]);
     ensureEntityHasSeed({
       entityType: "goal",
       entityId: goal.id,
       title: goal.title,
       stage: "goals",
     });
-    return;
+    return goal.id;
   }
 
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return null;
 
-  const { data: inserted } = await supabase
+  const { data: inserted, error } = await supabase
     .from("goals")
-    .insert({
+    .upsert({
+      id: goal.id,
       user_id: user.id,
       title: goal.title,
       goal_type: goal.goal_type,
       smart_current: goal.smart_current,
-      progress: 0,
-      execution: goal.execution,
+      progress: goal.progress ?? 0,
+      execution: normalizeExecution(goal.execution),
+      updated_at: goal.updated_at ?? new Date().toISOString(),
     })
     .select("id")
     .single();
 
+  if (error) throw error;
+
+  const goalId = inserted?.id ?? goal.id;
   const versions = goal.smart_versions ?? [goal.smart_current];
-  if (inserted) {
-    for (const v of versions) {
-      await supabase.from("goal_smart_versions").insert({
-        goal_id: inserted.id,
-        user_id: user.id,
-        smart_data: v,
-      });
-    }
+  for (const v of versions) {
+    await supabase.from("goal_smart_versions").insert({
+      goal_id: goalId,
+      user_id: user.id,
+      smart_data: v,
+    });
   }
+
+  ensureEntityHasSeed({
+    entityType: "goal",
+    entityId: goalId,
+    title: goal.title,
+    stage: "goals",
+  });
+
+  return goalId;
 }

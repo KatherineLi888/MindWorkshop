@@ -5,7 +5,14 @@ import {
   readAuthCookieFromList,
 } from "@/lib/supabase/auth-cookie";
 
-const PUBLIC = ["/login", "/register", "/auth/callback", "/api/auth"];
+const PUBLIC = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/auth/callback",
+  "/api/auth",
+];
 
 async function getUserFromRequest(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

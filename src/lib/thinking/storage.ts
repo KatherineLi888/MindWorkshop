@@ -1,4 +1,5 @@
 import { loadLocal, saveLocal, LOCAL_KEYS } from "@/lib/local-store";
+import { getChildNodes } from "@/lib/thinking/text-board";
 import { moveThinkingSessionToTrash } from "@/lib/trash/storage";
 import {
   deleteThoughtSessionFromCloud,
@@ -176,6 +177,37 @@ export function deleteThoughtNode(
     textChildLayout,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** 在问题下填写或创建唯一回答节点（各视图共用） */
+export function fillOrCreateAnswer(
+  session: ThoughtSession,
+  questionId: string,
+  text: string,
+  marksProgress: boolean
+): ThoughtSession {
+  const trimmed = text.trim();
+  if (!trimmed) return session;
+
+  const existing = getChildNodes(session.nodes, questionId).find(
+    (c) => c.type === "answer"
+  );
+  if (existing) {
+    return upsertNode(session, {
+      ...existing,
+      content: trimmed,
+      marksProgress,
+    });
+  }
+
+  return upsertNode(session, {
+    id: crypto.randomUUID(),
+    type: "answer",
+    content: trimmed,
+    parentIds: [questionId],
+    marksProgress,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 export function upsertNode(

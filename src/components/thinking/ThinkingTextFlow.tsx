@@ -61,7 +61,10 @@ type Props = {
     toIndex: number
   ) => void;
   onDeleteNode: (nodeId: string) => void;
-  onSwitchToTreeView?: () => void;
+  /** 脉络视图：点击节点在侧栏/底栏编辑 */
+  useEditPanel?: boolean;
+  activeNodeId?: string | null;
+  onNodeClick?: (nodeId: string) => void;
 };
 
 type PickerTarget = MethodPickerTarget;
@@ -87,6 +90,9 @@ type FlowContext = {
     toIndex: number
   ) => void;
   onDeleteNode: (nodeId: string) => void;
+  useEditPanel?: boolean;
+  activeNodeId?: string | null;
+  onNodeClick?: (nodeId: string) => void;
 };
 
 function emphasisTextClass(emphasis?: ThoughtNodeEmphasis): string {
@@ -321,6 +327,14 @@ function truncatePreview(text: string, max = 48): string {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
+function panelBoxProps(ctx: FlowContext) {
+  return {
+    useEditPanel: ctx.useEditPanel,
+    activeNodeId: ctx.activeNodeId,
+    onNodeClick: ctx.onNodeClick,
+  };
+}
+
 function depthTextClass(relativeDepth: number, isTopic: boolean): string {
   if (isTopic) {
     return "px-4 py-2.5 text-center text-lg font-semibold leading-snug";
@@ -432,6 +446,10 @@ function EditableBox({
   selected,
   onToggleSelect,
   selectable,
+  useEditPanel,
+  activeNodeId,
+  onNodeClick,
+  embedded,
 }: {
   node: ThoughtNode;
   session: ThoughtSession;
@@ -443,6 +461,10 @@ function EditableBox({
   selected?: boolean;
   onToggleSelect?: (additive: boolean) => void;
   selectable?: boolean;
+  useEditPanel?: boolean;
+  activeNodeId?: string | null;
+  onNodeClick?: (nodeId: string) => void;
+  embedded?: boolean;
 }) {
   const { getMethod } = useThinkingMethods();
   const appearance = resolveNodeAppearance(node, getMethod);
@@ -472,6 +494,8 @@ function EditableBox({
       : 1;
 
   const twoLineBox = minRows >= 2;
+  const isActive = activeNodeId === node.id;
+  const panelPreview = useEditPanel && !embedded;
 
   const boxFill =
     isTopic
@@ -482,22 +506,42 @@ function EditableBox({
           ? appearance.fill
           : "#FAFBFC";
 
+  const previewText =
+    draft.trim() ||
+    (isTopic
+      ? "思考主题…"
+      : node.type === "question"
+        ? resolveQuestionPlaceholder(node, getMethod)
+        : node.type === "conclusion"
+          ? "输入结论…"
+          : "写下回答…");
+
   return (
     <div
       className={cn(
-        "group/box relative w-full min-w-0 rounded-2xl border",
-        twoLineBox ? "min-h-[3.5rem]" : isTopic ? "min-h-[2.75rem]" : "min-h-[2.25rem]",
-        isTopic ? cn("mx-auto w-full border-slate-300", CARD_TOPIC_MAX_CLASS) : "border-slate-200/80",
-        selected && "ring-2 ring-[#3B82F6]"
+        "group/box relative w-full min-w-0",
+        !embedded && "rounded-2xl border",
+        twoLineBox ? "min-h-[3rem]" : isTopic ? "min-h-[2.5rem]" : "min-h-[2rem]",
+        isTopic && !embedded
+          ? cn("mx-auto w-full border-slate-300", CARD_TOPIC_MAX_CLASS)
+          : !embedded && "border-slate-200/80",
+        selected && "ring-2 ring-[#3B82F6]",
+        isActive && "ring-2 ring-[#3B82F6]/70",
+        panelPreview && "cursor-pointer hover:border-[#93C5FD]"
       )}
       style={{
         background: boxFill,
-        borderColor: isTopic ? undefined : appearance.stroke,
+        borderColor: isTopic && !embedded ? undefined : appearance.stroke,
         fontFamily: THINK_FONT_FAMILY,
       }}
       onContextMenu={onContextMenu}
       {...(onLongPressAt ? longPress : {})}
       onClick={(e) => {
+        if (panelPreview && onNodeClick) {
+          e.stopPropagation();
+          onNodeClick(node.id);
+          return;
+        }
         if (selectable && onToggleSelect && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
           onToggleSelect(true);
@@ -538,28 +582,45 @@ function EditableBox({
           {node.type === "conclusion" ? "结论" : "合并"}
         </div>
       )}
-      <AutoTextarea
-        topic={isTopic}
-        relativeDepth={depth}
-        minRows={minRows}
-        className={cn("text-center", emphasisTextClass(node.emphasis))}
-        style={{
-          color: appearance.text,
-          fontWeight: isTopic ? 700 : appearance.fontWeight,
-        }}
-        value={draft}
-        onChange={setDraft}
-        onBlur={commit}
-        placeholder={
-          isTopic
-            ? "思考主题…"
-            : node.type === "question"
-              ? resolveQuestionPlaceholder(node, getMethod)
-              : node.type === "conclusion"
-                ? "输入结论…"
-                : "写下回答…"
-        }
-      />
+      {panelPreview ? (
+        <p
+          className={cn(
+            "px-3 py-2 text-center whitespace-pre-wrap",
+            depthTextClass(depth, isTopic),
+            emphasisTextClass(node.emphasis),
+            !draft.trim() && "text-slate-400"
+          )}
+          style={{
+            color: draft.trim() ? appearance.text : undefined,
+            fontWeight: isTopic ? 700 : appearance.fontWeight,
+          }}
+        >
+          {previewText}
+        </p>
+      ) : (
+        <AutoTextarea
+          topic={isTopic}
+          relativeDepth={depth}
+          minRows={minRows}
+          className={cn("text-center", emphasisTextClass(node.emphasis))}
+          style={{
+            color: appearance.text,
+            fontWeight: isTopic ? 700 : appearance.fontWeight,
+          }}
+          value={draft}
+          onChange={setDraft}
+          onBlur={commit}
+          placeholder={
+            isTopic
+              ? "思考主题…"
+              : node.type === "question"
+                ? resolveQuestionPlaceholder(node, getMethod)
+                : node.type === "conclusion"
+                  ? "输入结论…"
+                  : "写下回答…"
+          }
+        />
+      )}
     </div>
   );
 }
@@ -774,6 +835,7 @@ function InlineCrossMerge({
         relativeDepth={ctx.relativeDepth(conclusion.id)}
         onContextMenu={(e) => ctx.onContextMenuNode(e, conclusion.id)}
         onLongPressAt={(x, y) => ctx.onLongPressNode(conclusion.id, x, y)}
+        {...panelBoxProps(ctx)}
       />
       <BranchTail
         mountNode={conclusion}
@@ -831,6 +893,7 @@ function VerticalConclusionBand({
         relativeDepth={ctx.relativeDepth(conclusion.id)}
         onContextMenu={(e) => ctx.onContextMenuNode(e, conclusion.id)}
         onLongPressAt={(x, y) => ctx.onLongPressNode(conclusion.id, x, y)}
+        {...panelBoxProps(ctx)}
       />
       <BranchTail
         mountNode={conclusion}
@@ -1041,7 +1104,7 @@ function ChildStack({
           "relative w-full",
           horizontal
             ? "flex flex-row flex-nowrap items-start gap-[5%]"
-            : "flex flex-col gap-2.5"
+            : "flex flex-col gap-1.5"
         )}
       >
         {horizontal && count > 1 && (
@@ -1113,58 +1176,64 @@ function QuestionColumn({
     node.id,
     ctx.rootId
   ).filter((c) => !ctx.placedConclusionIds.has(c.id));
+  const mountAfterAnswer = answer ?? node;
 
   return (
     <div className="flex w-full min-w-0 flex-col">
       <NodeWithSideAdd
-        onAdd={() => onOpenPicker(node.id)}
-        showAdd={!answer}
+        onAdd={() => onOpenPicker(mountAfterAnswer.id)}
+        showAdd={!answer || ctx.useEditPanel}
       >
-        <EditableBox
-          node={node}
-          session={ctx.session}
-          onSaveContent={ctx.onSaveContent}
-          relativeDepth={ctx.relativeDepth(node.id)}
-          selectable={isSelectable(node)}
-          selected={ctx.selectedIds.has(node.id)}
-          onToggleSelect={(additive) => ctx.onToggleSelect(node.id, additive)}
-          onContextMenu={(e) => ctx.onContextMenuNode(e, node.id)}
-          onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
-        />
-      </NodeWithSideAdd>
-      {answer ? (
-        <div className="mt-1 w-full">
-          <NodeWithSideAdd onAdd={() => onOpenPicker(answer.id)}>
-            <EditableBox
-              node={answer}
-              session={ctx.session}
-              onSaveContent={ctx.onSaveContent}
-              relativeDepth={ctx.relativeDepth(answer.id)}
-              onContextMenu={(e) => ctx.onContextMenuNode(e, answer.id)}
-              onLongPressAt={(x, y) => ctx.onLongPressNode(answer.id, x, y)}
-            />
-          </NodeWithSideAdd>
-          <BranchTail
-            mountNode={answer}
-            ctx={ctx}
-            onOpenPicker={onOpenPicker}
+        <div className="w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-[#FAFBFC]">
+          <EditableBox
+            node={node}
+            session={ctx.session}
+            onSaveContent={ctx.onSaveContent}
+            relativeDepth={ctx.relativeDepth(node.id)}
+            selectable={isSelectable(node)}
+            selected={ctx.selectedIds.has(node.id)}
+            onToggleSelect={(additive) => ctx.onToggleSelect(node.id, additive)}
+            onContextMenu={(e) => ctx.onContextMenuNode(e, node.id)}
+            onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
+            useEditPanel={ctx.useEditPanel}
+            activeNodeId={ctx.activeNodeId}
+            onNodeClick={ctx.onNodeClick}
+            embedded
           />
+          {answer ? (
+            <>
+              <div className="mx-3 h-px bg-slate-200" aria-hidden />
+              <EditableBox
+                node={answer}
+                session={ctx.session}
+                onSaveContent={ctx.onSaveContent}
+                relativeDepth={ctx.relativeDepth(answer.id)}
+                onContextMenu={(e) => ctx.onContextMenuNode(e, answer.id)}
+                onLongPressAt={(x, y) => ctx.onLongPressNode(answer.id, x, y)}
+                useEditPanel={ctx.useEditPanel}
+                activeNodeId={ctx.activeNodeId}
+                onNodeClick={ctx.onNodeClick}
+                embedded
+              />
+            </>
+          ) : (
+            node.type === "question" &&
+            !ctx.useEditPanel && (
+              <div className="px-2 pb-2">
+                <AddAnswerPanel
+                  questionId={node.id}
+                  onAddAnswer={ctx.onAddAnswer}
+                />
+              </div>
+            )
+          )}
         </div>
-      ) : (
-        node.type === "question" && (
-          <>
-            <AddAnswerPanel
-              questionId={node.id}
-              onAddAnswer={ctx.onAddAnswer}
-            />
-            <BranchTail
-              mountNode={node}
-              ctx={ctx}
-              onOpenPicker={onOpenPicker}
-            />
-          </>
-        )
-      )}
+      </NodeWithSideAdd>
+      <BranchTail
+        mountNode={mountAfterAnswer}
+        ctx={ctx}
+        onOpenPicker={onOpenPicker}
+      />
 
       {crossMerges.map((c) => (
         <InlineCrossMerge
@@ -1188,7 +1257,7 @@ function BreadcrumbBar({
   onExitFocus: () => void;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+    <div className="mb-1.5 flex flex-wrap items-center gap-1 text-xs text-slate-500">
       <button
         type="button"
         className="rounded px-1.5 py-0.5 hover:bg-slate-100 hover:text-[#3B82F6]"
@@ -1250,6 +1319,7 @@ function FocusSingleView({
               relativeDepth={ctx.relativeDepth(node.id)}
               onContextMenu={(e) => ctx.onContextMenuNode(e, node.id)}
               onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
+              {...panelBoxProps(ctx)}
             />
             <BranchTail
               mountNode={node}
@@ -1269,6 +1339,7 @@ function FocusSingleView({
               onLongPressAt={(x, y) => ctx.onLongPressNode(node.id, x, y)}
               topic
               relativeDepth={0}
+              {...panelBoxProps(ctx)}
             />
             <BranchTail
               mountNode={node}
@@ -1442,7 +1513,9 @@ export function ThinkingTextFlow({
   onToggleChildLayout,
   onMoveChildToIndex,
   onDeleteNode,
-  onSwitchToTreeView,
+  useEditPanel,
+  activeNodeId,
+  onNodeClick,
 }: Props) {
   const root = session.nodes.find((n) => n.id === rootId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1555,6 +1628,9 @@ export function ThinkingTextFlow({
     onToggleChildLayout,
     onMoveChildToIndex,
     onDeleteNode,
+    useEditPanel,
+    activeNodeId,
+    onNodeClick,
   };
 
   const contextNode = contextMenu
@@ -1565,20 +1641,9 @@ export function ThinkingTextFlow({
   const hasBranches = topicBranches.length > 0;
 
   return (
-    <div className="relative w-full min-w-0 px-0.5 sm:px-2 md:px-4 lg:px-6">
-      {onSwitchToTreeView && (
-        <div className="pointer-events-none sticky top-2 z-40 mb-2 flex justify-end">
-          <button
-            type="button"
-            onClick={onSwitchToTreeView}
-            className="pointer-events-auto rounded-lg border border-[#E2E8F0] bg-white/95 px-2.5 py-1 text-[10px] text-slate-600 shadow-sm hover:bg-slate-50"
-          >
-            导图视角
-          </button>
-        </div>
-      )}
+    <div className="relative w-full min-w-0 px-1 sm:px-2 md:px-3">
       {selectedIds.size >= 2 && !focusIds && (
-        <div className="sticky top-0 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-[#EFF6FF]/95 px-3 py-2 backdrop-blur-sm">
+        <div className="sticky top-0 z-30 mb-2 flex flex-wrap items-center gap-1.5 rounded-lg bg-[#EFF6FF]/95 px-2.5 py-1.5 backdrop-blur-sm">
           <span className="text-xs text-slate-600">
             已选 {selectedIds.size} 个节点
           </span>
@@ -1633,8 +1698,8 @@ export function ThinkingTextFlow({
       ) : (
         <div
           className={cn(
-            "flex w-full flex-col gap-2",
-            !hasBranches && "min-h-[40vh] justify-center"
+            "flex w-full flex-col gap-1.5",
+            !hasBranches && "min-h-[28vh] justify-center"
           )}
         >
           <div className={cn("group/node mx-auto w-full", CARD_TOPIC_MAX_CLASS)}>
@@ -1647,6 +1712,7 @@ export function ThinkingTextFlow({
                 onLongPressAt={(x, y) => openContextMenuAt(root.id, x, y)}
                 topic
                 relativeDepth={0}
+                {...panelBoxProps(ctx)}
               />
             </NodeWithSideAdd>
             <BranchTail

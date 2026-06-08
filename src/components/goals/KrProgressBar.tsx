@@ -20,7 +20,8 @@ export function KrProgressPercent({
   kr: KeyResult;
   className?: string;
 }) {
-  const { displayPercent, barWidth, isOverflow } = getKrProgressVisual(kr);
+  const { displayPercent, barWidth, isOverflow, isSoftComplete } =
+    getKrProgressVisual(kr);
   const visual = resolveProgressVisual(
     isOverflow ? displayPercent : barWidth,
     kr.start_date,
@@ -32,7 +33,7 @@ export function KrProgressPercent({
     <span
       className={cn(
         "shrink-0 font-semibold tabular-nums",
-        visual.percentClass,
+        isSoftComplete ? "text-slate-400" : visual.percentClass,
         className
       )}
     >
@@ -42,7 +43,8 @@ export function KrProgressPercent({
 }
 
 export function KrProgressBar({ kr, size = "md", className }: Props) {
-  const { displayPercent, barWidth, isOverflow } = getKrProgressVisual(kr);
+  const { displayPercent, barWidth, isOverflow, isSoftComplete } =
+    getKrProgressVisual(kr);
 
   return (
     <TimeProgressBar
@@ -51,6 +53,7 @@ export function KrProgressBar({ kr, size = "md", className }: Props) {
       endDate={kr.due_date}
       size={size}
       isOverflow={isOverflow}
+      isSoftComplete={isSoftComplete}
       unitContext={krUnitContext(kr)}
       className={className}
     />

@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/AppShell";
+import { WorkshopContent } from "@/components/layout/WorkshopContent";
 import { WorkshopThemeProvider } from "@/components/theme/WorkshopThemeProvider";
 
 export default function WorkshopLayout({
@@ -8,7 +9,9 @@ export default function WorkshopLayout({
 }) {
   return (
     <WorkshopThemeProvider>
-      <AppShell>{children}</AppShell>
+      <AppShell>
+        <WorkshopContent>{children}</WorkshopContent>
+      </AppShell>
     </WorkshopThemeProvider>
   );
 }

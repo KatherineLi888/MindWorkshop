@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 import {
-  getAuthCookieName,
-  sessionToCookieValue,
-} from "@/lib/supabase/auth-cookie";
+  attachSessionCookies,
+  SESSION_COOKIE_OPTS,
+} from "@/lib/auth/session-cookies-server";
+import { getAuthCookieName } from "@/lib/supabase/auth-cookie";
 import type { Session } from "@supabase/supabase-js";
-
-const COOKIE_OPTS = {
-  path: "/",
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  maxAge: 60 * 60 * 24 * 400,
-};
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -31,28 +24,15 @@ export async function POST(request: Request) {
     user: null,
   } as Session;
 
-  const response = NextResponse.json({ ok: true });
-  const name = getAuthCookieName();
-  const value = sessionToCookieValue(session);
-
-  if (value.length > 3800) {
-    const chunkSize = 3800;
-    for (let i = 0; i < value.length; i += chunkSize) {
-      response.cookies.set(`${name}.${i / chunkSize}`, value.slice(i, i + chunkSize), COOKIE_OPTS);
-    }
-  } else {
-    response.cookies.set(name, value, COOKIE_OPTS);
-  }
-
-  return response;
+  return attachSessionCookies(NextResponse.json({ ok: true }), session);
 }
 
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
   const name = getAuthCookieName();
-  response.cookies.set(name, "", { ...COOKIE_OPTS, maxAge: 0 });
+  response.cookies.set(name, "", { ...SESSION_COOKIE_OPTS, maxAge: 0 });
   for (let i = 0; i < 10; i++) {
-    response.cookies.set(`${name}.${i}`, "", { ...COOKIE_OPTS, maxAge: 0 });
+    response.cookies.set(`${name}.${i}`, "", { ...SESSION_COOKIE_OPTS, maxAge: 0 });
   }
   return response;
 }

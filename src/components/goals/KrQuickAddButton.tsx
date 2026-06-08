@@ -9,6 +9,7 @@ type Props = {
   onClick: (e: React.MouseEvent) => void;
   size?: "sm" | "md";
   className?: string;
+  disabled?: boolean;
 };
 
 export function KrQuickAddButton({
@@ -16,12 +17,14 @@ export function KrQuickAddButton({
   onClick,
   size = "md",
   className,
+  disabled: disabledProp,
 }: Props) {
   const visual = getKrProgressVisual(kr);
   const atTarget =
     kr.target > 0 && kr.current >= kr.target && !kr.allowExceed;
   const disabled =
-    atTarget && (kr.recordMode === "count" || kr.recordMode === "consume");
+    disabledProp ||
+    (atTarget && (kr.recordMode === "count" || kr.recordMode === "consume"));
   const dim = size === "sm" ? "h-5 w-5 text-xs" : "h-6 w-6 text-sm";
 
   return (
