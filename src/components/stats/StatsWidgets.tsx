@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { SeedsWidget } from "@/components/seeds/SeedsWidget";
 import { Card } from "@/components/ui/card";
+import { withReturn } from "@/lib/navigation/return-to";
 import {
   KPI_META,
   type KpiKey,
@@ -79,6 +80,7 @@ export function KpiStrip({
   interactive = true,
   values,
   dense = false,
+  returnTo,
 }: {
   stats?: DashboardStats;
   keys: KpiKey[];
@@ -86,6 +88,7 @@ export function KpiStrip({
   interactive?: boolean;
   values?: Partial<Record<KpiKey, number>>;
   dense?: boolean;
+  returnTo?: string;
 }) {
   const items = keys.filter((k) => KPI_META[k]);
   if (!items.length) return null;
@@ -96,7 +99,7 @@ export function KpiStrip({
     const val = values?.[key] ?? stats?.kpis[key] ?? 0;
     return (
       <KpiCell
-        href={meta.href}
+        href={withReturn(meta.href, returnTo)}
         interactive={interactive}
         className={`flex h-full flex-col items-center justify-center rounded-xl border border-[#E2E8F0] ${meta.bg} p-2 text-center transition hover:shadow-sm`}
       >
@@ -119,7 +122,7 @@ export function KpiStrip({
           return (
             <KpiCell
               key={key}
-              href={meta.href}
+              href={withReturn(meta.href, returnTo)}
               interactive={interactive}
               className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-xs hover:bg-slate-50"
             >
@@ -148,7 +151,7 @@ export function KpiStrip({
         return (
           <KpiCell
             key={key}
-            href={meta.href}
+            href={withReturn(meta.href, returnTo)}
             interactive={interactive}
             className={`rounded-xl border border-[#E2E8F0] border-l-4 ${meta.accent} ${meta.bg} p-3 transition hover:shadow-sm`}
           >
@@ -190,7 +193,7 @@ export function DecisionsWidget({
 
   if (dense) {
     return (
-      <Card className="flex h-full flex-col items-center justify-center bg-white p-2 text-center">
+      <Card className="flex h-full flex-col items-center justify-center bg-white p-2 text-center shadow-sm ring-1 ring-slate-200/60">
         <span className="text-xl">⚖️</span>
         <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
           {total}
@@ -203,7 +206,7 @@ export function DecisionsWidget({
   }
 
   return (
-    <Card className={`flex h-full flex-col bg-white ${compactPreview ? "p-2" : ""}`}>
+    <Card className={`flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60 ${compactPreview ? "p-2" : ""}`}>
       <SectionTitle title={title} hint={compactPreview ? undefined : "未归档决策"} />
       {total === 0 ? (
         <EmptyChart text="暂无决策数据" />
@@ -391,7 +394,7 @@ export function GoalsProgressWidget({
   const rows = rowsProp ?? stats?.goalProgress ?? [];
 
   return (
-    <Card className={`flex h-full flex-col bg-white ${compactPreview ? "p-2" : ""}`}>
+    <Card className={`flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60 ${compactPreview ? "p-2" : ""}`}>
       <SectionTitle title={title} hint={compactPreview ? undefined : "按筛选条件展示"} />
       {rows.length === 0 ? (
         <EmptyChart text="暂无目标" />
@@ -433,7 +436,7 @@ export function GoalsTypesWidget({
   const total = goalTypeDist.reduce((s, g) => s + g.value, 0);
 
   return (
-    <Card className="flex h-full flex-col bg-white">
+    <Card className="flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60">
       <SectionTitle title={title} />
       {total === 0 ? (
         <EmptyChart text="暂无目标" />
@@ -505,7 +508,7 @@ export function ActivityWidget({
   if (style === "compact") {
     const max = Math.max(...activityTrend.map((d) => d.count), 1);
     return (
-      <Card className="flex h-full flex-col bg-white">
+      <Card className="flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60">
         <SectionTitle title={title} hint="每日新增/更新条目数" />
         <div className="flex items-end gap-1.5 h-20">
           {activityTrend.map((d) => (
@@ -526,7 +529,7 @@ export function ActivityWidget({
   }
 
   return (
-    <Card className="flex h-full flex-col bg-white">
+    <Card className="flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60">
       <SectionTitle title={title} hint="跨模块合计" />
       <div className="min-h-[10rem] flex-1">
         <ResponsiveContainer width="100%" height="100%">
@@ -573,7 +576,7 @@ export function ModulesWidget({
 }) {
   const moduleUsage = usageProp ?? stats?.moduleUsage ?? [];
   return (
-    <Card className="flex h-full flex-col bg-white">
+    <Card className="flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60">
       <SectionTitle title={title} hint="各板块内容规模" />
       {moduleUsage.length === 0 ? (
         <EmptyChart text="暂无数据" />
@@ -640,22 +643,27 @@ export function RecentWidget({
   interactive = true,
   recentActivity: itemsProp,
   title = "最近动态",
+  returnTo,
 }: {
   stats?: DashboardStats;
   style: WidgetStyle;
   interactive?: boolean;
   recentActivity?: WidgetViewData["recentActivity"];
   title?: string;
+  returnTo?: string;
 }) {
   const limit = style === "compact" ? 5 : 8;
   const items = (itemsProp ?? stats?.recentActivity ?? []).slice(0, limit);
 
   return (
-    <Card className="flex h-full flex-col bg-white">
+    <Card className="flex h-full flex-col bg-white shadow-sm ring-1 ring-slate-200/60">
       <div className="mb-3 flex items-center justify-between">
         <SectionTitle title={title} hint="点击跳转对应模块" />
         {interactive ? (
-          <Link href="/inbox" className="text-xs text-blue-500 hover:underline">
+          <Link
+            href={withReturn("/inbox", returnTo)}
+            className="text-xs text-blue-500 hover:underline"
+          >
             收集箱 →
           </Link>
         ) : (
@@ -670,7 +678,7 @@ export function RecentWidget({
             <li key={item.id}>
               {interactive ? (
                 <Link
-                  href={item.href}
+                  href={withReturn(item.href, returnTo)}
                   className="flex items-center gap-3 py-2.5 transition hover:bg-slate-50/80"
                 >
                   <span
@@ -709,14 +717,94 @@ export function RecentWidget({
   );
 }
 
+function ThinkingPinWidget({
+  title,
+  items,
+  returnTo,
+}: {
+  title: string;
+  items: NonNullable<WidgetViewData["pinnedThinking"]>;
+  returnTo?: string;
+}) {
+  return (
+    <Card className="flex h-full flex-col bg-white p-3 shadow-sm ring-1 ring-slate-200/60">
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+      {items.length === 0 ? (
+        <p className="mt-3 text-xs text-slate-400">条目已删除或不可用</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                href={withReturn(item.href, returnTo)}
+                className="block rounded-xl border-l-[3px] border-l-violet-400 bg-violet-50/25 px-3 py-2 transition hover:bg-violet-50/50"
+              >
+                <p className="truncate text-sm font-medium text-slate-800">
+                  {item.title}
+                </p>
+                <p className="mt-0.5 text-[11px] text-violet-600/90">
+                  {item.stageLabel}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function DecisionPinWidget({
+  title,
+  items,
+  returnTo,
+}: {
+  title: string;
+  items: NonNullable<WidgetViewData["pinnedDecisions"]>;
+  returnTo?: string;
+}) {
+  return (
+    <Card className="flex h-full flex-col bg-white p-3 shadow-sm ring-1 ring-slate-200/60">
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+      {items.length === 0 ? (
+        <p className="mt-3 text-xs text-slate-400">条目已删除或不可用</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                href={withReturn(item.href, returnTo)}
+                className="block rounded-xl border-l-[3px] border-l-blue-400 bg-blue-50/25 px-3 py-2 transition hover:bg-blue-50/50"
+              >
+                <p className="truncate text-sm font-medium text-slate-800">
+                  {item.title}
+                </p>
+                <p className="mt-0.5 line-clamp-2 text-[11px] text-slate-500">
+                  {item.conclusion}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 export function renderWidgetView(
   instance: WidgetInstance,
   view: WidgetViewData,
-  options?: { interactive?: boolean; compact?: boolean; dense?: boolean }
+  options?: {
+    interactive?: boolean;
+    compact?: boolean;
+    dense?: boolean;
+    returnTo?: string;
+  }
 ): ReactNode {
   const interactive = options?.interactive ?? true;
   const compact = options?.compact ?? false;
   const dense = options?.dense ?? instance.size === "1x1";
+  const returnTo = options?.returnTo;
   const style = instance.style;
 
   switch (instance.type) {
@@ -728,6 +816,7 @@ export function renderWidgetView(
           style={style}
           interactive={interactive}
           dense={dense}
+          returnTo={returnTo}
         />
       );
     case "decisions":
@@ -781,6 +870,7 @@ export function renderWidgetView(
           title={view.title}
           recentActivity={view.recentActivity}
           interactive={interactive}
+          returnTo={returnTo}
         />
       );
     case "seeds":
@@ -797,6 +887,23 @@ export function renderWidgetView(
             }
           }
           compact={compact || style === "compact"}
+          returnTo={returnTo}
+        />
+      );
+    case "thinking_pin":
+      return (
+        <ThinkingPinWidget
+          title={view.title}
+          items={view.pinnedThinking ?? []}
+          returnTo={returnTo}
+        />
+      );
+    case "decision_pin":
+      return (
+        <DecisionPinWidget
+          title={view.title}
+          items={view.pinnedDecisions ?? []}
+          returnTo={returnTo}
         />
       );
     default:

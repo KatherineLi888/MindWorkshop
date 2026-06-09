@@ -31,6 +31,8 @@ const LEGACY_KEYS = [
   "knowledge-canvas",
 ];
 
+const MOBILE_MQ = "(max-width: 767px)";
+
 function loadVault(): VaultState {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
@@ -67,6 +69,8 @@ export function CanvasWorkspace() {
   const [vault, setVault] = useState<VaultState>(() => createVault("1x1"));
   const [ready, setReady] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const layoutMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,6 +82,21 @@ export function CanvasWorkspace() {
     if (!ready) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
   }, [vault, ready]);
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_MQ);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !isMobile) return;
+    if (vault.layout !== "1x1") {
+      setVault((prev) => resizeVault(prev, "1x1"));
+    }
+  }, [ready, isMobile, vault.layout]);
 
   useEffect(() => {
     if (!layoutMenuOpen) return;
@@ -163,6 +182,7 @@ export function CanvasWorkspace() {
         [prev.activeSlotId]: { slotId: prev.activeSlotId, documentId: doc.id },
       },
     }));
+    if (isMobile) setLibraryOpen(false);
   };
 
   const deleteDoc = (docId: string) => {
@@ -237,12 +257,26 @@ export function CanvasWorkspace() {
   };
 
   const slotIds = slotIdsForLayout(vault.layout);
+  const displaySlotIds = isMobile ? [vault.activeSlotId] : slotIds;
+
+  const libraryProps = {
+    vault,
+    activeDocumentId: activeSlot?.documentId ?? null,
+    onOpen: openDoc,
+    onOpenInNewPane: openDocInNewPane,
+    onCreateFolder: createFolderIn,
+    onCreateDoc: createDocIn,
+    onRenameFolder: renameFolder,
+    onRenameDoc: renameDoc,
+    onDeleteFolder: deleteFolder,
+    onDeleteDoc: deleteDoc,
+  };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[#E2E8F0] px-3">
         <span className="mr-1 text-xs text-slate-400">知识画布</span>
-        <div className="relative" ref={layoutMenuRef}>
+        <div className="relative hidden md:block" ref={layoutMenuRef}>
           <button
             type="button"
             onClick={() => setLayoutMenuOpen((v) => !v)}
@@ -270,30 +304,40 @@ export function CanvasWorkspace() {
         <button
           type="button"
           onClick={() => downloadVaultExcel(vault)}
-          className="rounded border border-[#E2E8F0] px-3 py-1 text-sm hover:bg-slate-50"
+          className="hidden rounded border border-[#E2E8F0] px-3 py-1 text-sm hover:bg-slate-50 md:inline-block"
         >
           导出 Excel
         </button>
+        <button
+          type="button"
+          onClick={() => setLibraryOpen(true)}
+          className="ml-auto rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+        >
+          文档库
+        </button>
       </div>
 
+      {libraryOpen && (
+        <div className="absolute inset-0 z-40 flex flex-col bg-white md:hidden">
+          <DocumentLibrary
+            {...libraryProps}
+            variant="page"
+            onClose={() => setLibraryOpen(false)}
+          />
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1">
-        <DocumentLibrary
-          vault={vault}
-          activeDocumentId={activeSlot?.documentId ?? null}
-          onOpen={openDoc}
-          onOpenInNewPane={openDocInNewPane}
-          onCreateFolder={createFolderIn}
-          onCreateDoc={createDocIn}
-          onRenameFolder={renameFolder}
-          onRenameDoc={renameDoc}
-          onDeleteFolder={deleteFolder}
-          onDeleteDoc={deleteDoc}
-        />
+        <div className="hidden md:contents">
+          <DocumentLibrary {...libraryProps} variant="sidebar" />
+        </div>
 
         <div
-          className={`grid min-h-0 min-w-0 flex-1 gap-px bg-[#E2E8F0] ${gridClassForLayout(vault.layout)}`}
+          className={`grid min-h-0 min-w-0 flex-1 gap-px bg-[#E2E8F0] ${
+            isMobile ? "grid-cols-1 grid-rows-1" : gridClassForLayout(vault.layout)
+          }`}
         >
-          {slotIds.map((slotId) => {
+          {displaySlotIds.map((slotId) => {
             const slot = vault.slots[slotId];
             const doc = slot?.documentId
               ? vault.documents[slot.documentId]
@@ -311,6 +355,7 @@ export function CanvasWorkspace() {
                 onUpdate={updateDoc}
                 onClose={() => closeSlot(slotId)}
                 onAddNode={isActiveCanvas ? addNode : undefined}
+                mobileSingle={isMobile}
               />
             );
           })}

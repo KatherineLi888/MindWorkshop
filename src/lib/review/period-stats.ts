@@ -5,7 +5,8 @@ import { loadLocal, LOCAL_KEYS } from "@/lib/local-store";
 import { loadThoughtSessions } from "@/lib/thinking/storage";
 import { loadTriageRecords } from "@/lib/triage/storage";
 import type { GraphNodeRow } from "@/types/database";
-import type { PeriodStatsSnapshot, PeriodStatItem } from "./types";
+import { PERIOD_PRESET_LABELS } from "./period-labels";
+import type { PeriodPreset, PeriodStatsSnapshot, PeriodStatItem } from "./types";
 
 function inRange(iso: string, start: Date, end: Date): boolean {
   const t = new Date(iso).getTime();
@@ -24,8 +25,20 @@ function endOfDay(d: Date): Date {
   return x;
 }
 
+function startOfMonth(d: Date): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), 1);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfMonth(d: Date): Date {
+  const x = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
 export function resolvePeriodRange(
-  preset: "day" | "week" | "month" | "custom",
+  preset: PeriodPreset,
   customStart?: string,
   customEnd?: string
 ): { start: Date; end: Date; label: string } {
@@ -34,22 +47,42 @@ export function resolvePeriodRange(
     return {
       start: startOfDay(now),
       end: endOfDay(now),
-      label: "今日",
+      label: PERIOD_PRESET_LABELS.day,
     };
   }
   if (preset === "week") {
     const start = startOfDay(now);
-    start.setDate(start.getDate() - 6);
-    return { start, end: endOfDay(now), label: "近 7 天" };
+    const dow = start.getDay() || 7;
+    start.setDate(start.getDate() - (dow - 1));
+    return { start, end: endOfDay(now), label: PERIOD_PRESET_LABELS.week };
   }
   if (preset === "month") {
-    const start = startOfDay(now);
-    start.setDate(start.getDate() - 29);
-    return { start, end: endOfDay(now), label: "近 30 天" };
+    return {
+      start: startOfMonth(now),
+      end: endOfDay(now),
+      label: PERIOD_PRESET_LABELS.month,
+    };
+  }
+  if (preset === "quarter") {
+    const q = Math.floor(now.getMonth() / 3);
+    const start = new Date(now.getFullYear(), q * 3, 1);
+    start.setHours(0, 0, 0, 0);
+    return { start, end: endOfDay(now), label: PERIOD_PRESET_LABELS.quarter };
+  }
+  if (preset === "half_year") {
+    const h = now.getMonth() < 6 ? 0 : 6;
+    const start = new Date(now.getFullYear(), h, 1);
+    start.setHours(0, 0, 0, 0);
+    return { start, end: endOfDay(now), label: PERIOD_PRESET_LABELS.half_year };
+  }
+  if (preset === "year") {
+    const start = new Date(now.getFullYear(), 0, 1);
+    start.setHours(0, 0, 0, 0);
+    return { start, end: endOfDay(now), label: PERIOD_PRESET_LABELS.year };
   }
   const start = customStart ? startOfDay(new Date(customStart)) : startOfDay(now);
   const end = customEnd ? endOfDay(new Date(customEnd)) : endOfDay(now);
-  return { start, end, label: "自定义周期" };
+  return { start, end, label: PERIOD_PRESET_LABELS.custom };
 }
 
 function countJumpsInPeriod(

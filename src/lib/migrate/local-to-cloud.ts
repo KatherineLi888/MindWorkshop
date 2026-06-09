@@ -192,7 +192,10 @@ export async function migrateLocalToCloud(
     counts.inbox_items = rows.length;
   }
 
-  const settings = loadLocal<{ openai_api_key?: string }>(
+  const settings = loadLocal<{
+    openai_api_key?: string;
+    ai_provider?: string;
+  }>(
     LOCAL_KEYS.settings,
     {}
   );
@@ -200,6 +203,7 @@ export async function migrateLocalToCloud(
     await supabase.from("user_settings").upsert({
       user_id: userId,
       openai_api_key: settings.openai_api_key,
+      ai_provider: settings.ai_provider === "deepseek" ? "deepseek" : "openai",
       updated_at: new Date().toISOString(),
     });
     counts.user_settings = 1;

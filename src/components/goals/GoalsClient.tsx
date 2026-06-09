@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { CLOUD_SYNCED_EVENT } from "@/lib/cloud-sync-events";
 
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MODULE_INTRO } from "@/lib/module-copy";
 
 import { FlowListContextMenu } from "@/components/flow/FlowListContextMenu";
 
@@ -327,6 +328,12 @@ export function GoalsClient() {
 
     }
 
+    if (searchParams.get("new") === "1") {
+
+      setShowNewDialog(true);
+
+    }
+
   }, [searchParams, goals]);
 
 
@@ -573,7 +580,9 @@ export function GoalsClient() {
 
     const savedId = await persistNewGoal(row);
 
-    if (!savedId) return;
+    if (!savedId) {
+      throw new Error("保存失败：请确认已登录（云端模式）或稍后重试");
+    }
 
     registerFlowEntry("goal", savedId, "goals");
 
@@ -647,7 +656,7 @@ export function GoalsClient() {
 
     return (
 
-      <div className="p-4 lg:p-6">
+      <div className="p-4 pb-24 lg:p-6 lg:pb-6">
 
         <SmartWizard
 
@@ -771,20 +780,6 @@ export function GoalsClient() {
 
 
 
-  const filterDescription: Record<Filter, string> = {
-
-    today: "今日待办与逾期未完成任务；过期项可右键或长按快捷调整。",
-
-    active: "进行中的目标与挑战；有关联挑战的主目标以挑战卡片展示，不再重复列出。",
-
-    all: "全部目标一览；点击标题进入详情。",
-
-    challenge: "短期挑战关联主目标；打卡同步主 KR 进度。",
-
-  };
-
-
-
   return (
 
     <div
@@ -805,9 +800,7 @@ export function GoalsClient() {
 
         title="目标管理"
 
-        description={filterDescription[filter]}
-
-        secondaryLink={{ label: "收集箱 →", href: "/inbox" }}
+        description={MODULE_INTRO.goals}
 
         actions={
 

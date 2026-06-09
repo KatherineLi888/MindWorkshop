@@ -5,12 +5,14 @@ import { Logo } from "@/components/brand/Logo";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  AI_NAV,
   ARCHIVE_NAV,
   FLOW_NAV_ITEMS,
   HOME_NAV,
   KNOWLEDGE_NAV_GROUP,
   ROOT_NAV_GROUP,
   STATS_NAV,
+  isAiNavActive,
   isArchiveNavActive,
   isHomeNavActive,
   isNavItemActive,
@@ -18,7 +20,6 @@ import {
   isStatsNavActive,
 } from "./nav-config";
 import { cn } from "@/lib/utils";
-import { AiAssistant } from "@/components/ai/AiAssistant";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { CLOUD_SYNCED_EVENT } from "@/lib/cloud-sync-events";
 import { AUTH_ENABLED } from "@/lib/config";
@@ -204,6 +205,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ))}
             </div>
           </div>
+
+          <div className="mt-3">
+            {!collapsed && (
+              <p className="px-3 pb-1 pt-1 text-[10px] font-medium tracking-wide text-slate-400">
+                助手
+              </p>
+            )}
+            <Link
+              href={AI_NAV.href}
+              title={AI_NAV.label}
+              className={cn(
+                navLinkClass(isAiNavActive(pathname)),
+                collapsed && "justify-center px-2"
+              )}
+            >
+              <span className="w-5 shrink-0 text-center text-xs">
+                {AI_NAV.icon}
+              </span>
+              {!collapsed && AI_NAV.label}
+            </Link>
+          </div>
         </nav>
         <div className="mt-auto space-y-0.5 border-t border-[var(--border)] p-2">
           <Link
@@ -264,8 +286,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <MobileBottomNav />
-
-      <AiAssistant />
     </div>
   );
 }

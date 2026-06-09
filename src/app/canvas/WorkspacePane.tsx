@@ -20,6 +20,7 @@ type Props = {
   onUpdate: (doc: VaultDocument) => void;
   onClose: () => void;
   onAddNode?: () => void;
+  mobileSingle?: boolean;
 };
 
 export function WorkspacePane({
@@ -29,6 +30,7 @@ export function WorkspacePane({
   onUpdate,
   onClose,
   onAddNode,
+  mobileSingle = false,
 }: Props) {
   if (!document) {
     return (
@@ -38,7 +40,11 @@ export function WorkspacePane({
         }`}
         onMouseDown={onFocus}
       >
-        <p className="text-xs">从左侧文档库打开文档</p>
+        <p className="px-4 text-center text-xs">
+          {mobileSingle
+            ? "点右上角「文档库」打开或新建文档"
+            : "从左侧文档库打开文档"}
+        </p>
       </div>
     );
   }

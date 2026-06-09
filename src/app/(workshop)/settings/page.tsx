@@ -19,11 +19,22 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ThemeSettingsPreview } from "@/components/theme/ThemeSettingsPreview";
 import { TreeSettingsPreview } from "@/components/thinking/TreeSettingsPreview";
+import {
+  AI_PROVIDER_META,
+  normalizeAiProvider,
+  type AiProvider,
+} from "@/lib/ai/provider";
 import { formatDate } from "@/lib/utils";
+
+type LocalAiSettings = {
+  openai_api_key?: string;
+  ai_provider?: AiProvider;
+};
 
 export default function SettingsPage() {
   const router = useRouter();
   const [apiKey, setApiKey] = useState("");
+  const [aiProvider, setAiProvider] = useState<AiProvider>("openai");
   const [email, setEmail] = useState("");
   const [saved, setSaved] = useState(false);
   const [trash, setTrash] = useState<TrashItem[]>([]);
@@ -36,8 +47,9 @@ export default function SettingsPage() {
   useEffect(() => {
     refreshTrash();
     if (!isCloudEnabled()) {
-      const local = loadLocal<{ openai_api_key?: string }>(LOCAL_KEYS.settings, {});
+      const local = loadLocal<LocalAiSettings>(LOCAL_KEYS.settings, {});
       if (local.openai_api_key) setApiKey(local.openai_api_key);
+      setAiProvider(normalizeAiProvider(local.ai_provider));
       return;
     }
     (async () => {
@@ -49,17 +61,21 @@ export default function SettingsPage() {
         setEmail(user.email ?? "");
         const { data } = await supabase
           .from("user_settings")
-          .select("openai_api_key")
+          .select("openai_api_key, ai_provider")
           .eq("user_id", user.id)
           .maybeSingle();
         if (data?.openai_api_key) setApiKey(data.openai_api_key);
+        setAiProvider(normalizeAiProvider(data?.ai_provider));
       }
     })();
   }, []);
 
   const save = async () => {
     if (!isCloudEnabled()) {
-      saveLocal(LOCAL_KEYS.settings, { openai_api_key: apiKey });
+      saveLocal(LOCAL_KEYS.settings, {
+        openai_api_key: apiKey,
+        ai_provider: aiProvider,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       return;
@@ -72,6 +88,7 @@ export default function SettingsPage() {
     await supabase.from("user_settings").upsert({
       user_id: user.id,
       openai_api_key: apiKey,
+      ai_provider: aiProvider,
       updated_at: new Date().toISOString(),
     });
     setSaved(true);
@@ -242,14 +259,49 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="bg-[var(--background)]">
-        <label className="text-xs text-slate-500">OpenAI API Key（可选）</label>
-        <p className="mb-2 text-[10px] text-slate-400">用于右下角 AI 助手</p>
+        <p className="text-xs font-medium text-slate-700">AI 助手</p>
+        <p className="mb-3 text-[10px] text-slate-400">
+          用于右下角 AI 助手，支持 OpenAI 与 DeepSeek
+        </p>
+        <label className="text-xs text-slate-500">服务商</label>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {(Object.keys(AI_PROVIDER_META) as AiProvider[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setAiProvider(key)}
+              className={`rounded-lg px-3 py-1.5 text-xs transition ring-1 ${
+                aiProvider === key
+                  ? "bg-[var(--primary-soft)] text-[var(--primary)] ring-[var(--primary)]/30"
+                  : "bg-white text-slate-600 ring-[#E2E8F0] hover:bg-slate-50"
+              }`}
+            >
+              {AI_PROVIDER_META[key].label}
+            </button>
+          ))}
+        </div>
+        <label className="mt-3 block text-xs text-slate-500">
+          {AI_PROVIDER_META[aiProvider].label} API Key
+        </label>
         <Input
+          className="mt-1.5"
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-..."
+          placeholder={AI_PROVIDER_META[aiProvider].keyHint}
         />
+        <p className="mt-1.5 text-[10px] text-slate-400">
+          DeepSeek 请使用{" "}
+          <a
+            href="https://platform.deepseek.com/api_keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--primary)] hover:underline"
+          >
+            platform.deepseek.com
+          </a>{" "}
+          创建的 Key；模型为 {AI_PROVIDER_META[aiProvider].model}
+        </p>
         <Button className="mt-3" variant="primary" size="sm" onClick={save}>
           保存
         </Button>

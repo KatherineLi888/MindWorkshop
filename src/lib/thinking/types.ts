@@ -22,7 +22,7 @@ export type ThoughtNode = {
   createdAt: string;
 };
 
-export type ThinkingEditorView = "split" | "text" | "tree";
+export type ThinkingEditorView = "split" | "text" | "tree" | "qa";
 
 /** 文字板块下某节点的子块排列 */
 export type TextChildLayout = "vertical" | "split";

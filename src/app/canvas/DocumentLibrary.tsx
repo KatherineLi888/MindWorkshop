@@ -32,6 +32,9 @@ type NameDialogState =
 type Props = {
   vault: VaultState;
   activeDocumentId: string | null;
+  /** sidebar：左侧栏；page：手机全屏子页 */
+  variant?: "sidebar" | "page";
+  onClose?: () => void;
   onOpen: (docId: string) => void;
   onOpenInNewPane: (docId: string) => void;
   onCreateFolder: (parentId: string | null, name: string) => string;
@@ -166,6 +169,8 @@ function TreeBranch({
 export function DocumentLibrary({
   vault,
   activeDocumentId,
+  variant = "sidebar",
+  onClose,
   onOpen,
   onOpenInNewPane,
   onCreateFolder,
@@ -175,6 +180,12 @@ export function DocumentLibrary({
   onDeleteFolder,
   onDeleteDoc,
 }: Props) {
+  const isPage = variant === "page";
+
+  const handleOpen = (docId: string) => {
+    onOpen(docId);
+    if (isPage) onClose?.();
+  };
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(Object.keys(vault.folders))
   );
@@ -227,14 +238,19 @@ export function DocumentLibrary({
     const folderId = docParentFolderId(target);
 
     if (target.kind === "doc") {
-      return [
-        { type: "action", label: "打开", onClick: () => onOpen(target.id) },
-        {
+      const docItems: ContextMenuItem[] = [
+        { type: "action", label: "打开", onClick: () => handleOpen(target.id) },
+      ];
+      if (!isPage) {
+        docItems.push({
           type: "action",
           label: "在新栏打开",
           onClick: () => onOpenInNewPane(target.id),
-        },
-        { type: "separator" },
+        });
+      }
+      docItems.push({ type: "separator" });
+      return [
+        ...docItems,
         {
           type: "action",
           label: "重命名",
@@ -327,10 +343,34 @@ export function DocumentLibrary({
 
   return (
     <>
-      <aside className="flex w-60 shrink-0 flex-col border-r border-[#E2E8F0] bg-slate-50/50">
+      <aside
+        className={
+          isPage
+            ? "flex min-h-0 flex-1 flex-col bg-white"
+            : "flex w-60 shrink-0 flex-col border-r border-[#E2E8F0] bg-slate-50/50"
+        }
+      >
         <div className="border-b border-[#E2E8F0] px-3 py-2">
-          <p className="text-xs font-medium text-slate-700">文档库</p>
-          <p className="text-[10px] text-slate-400">空白处右键新建</p>
+          {isPage ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+              >
+                ← 返回
+              </button>
+              <p className="text-xs font-medium text-slate-700">文档库</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs font-medium text-slate-700">文档库</p>
+              <p className="text-[10px] text-slate-400">空白处右键新建</p>
+            </>
+          )}
+          {isPage && (
+            <p className="mt-1 text-[10px] text-slate-400">空白处右键新建</p>
+          )}
         </div>
 
         <div
@@ -352,7 +392,7 @@ export function DocumentLibrary({
               expanded={expanded}
               toggleExpand={toggleExpand}
               activeDocumentId={activeDocumentId}
-              onOpen={onOpen}
+              onOpen={handleOpen}
               onOpenInNewPane={onOpenInNewPane}
               onContextMenu={openContextMenu}
             />
@@ -360,9 +400,15 @@ export function DocumentLibrary({
         </div>
 
         <div className="border-t border-[#E2E8F0] px-2 py-2 text-[10px] leading-relaxed text-slate-400">
-          单击打开 · Ctrl+单击新栏
-          <br />
-          右键新建 / 删除需确认
+          {isPage ? (
+            <>单击打开文档 · 右键新建 / 删除需确认</>
+          ) : (
+            <>
+              单击打开 · Ctrl+单击新栏
+              <br />
+              右键新建 / 删除需确认
+            </>
+          )}
         </div>
       </aside>
 

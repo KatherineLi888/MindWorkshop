@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { SeedLinkPanel } from "@/components/seeds/SeedLinkPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { MarkdownField } from "@/components/shared/MarkdownField";
 import { Input, Textarea } from "@/components/ui/input";
 import {
   createTheoryEvidence,
@@ -185,11 +186,11 @@ export function TheoryDetailClient({ theoryId }: Props) {
           value={draft.title}
           onChange={(e) => patch("title", e.target.value)}
         />
-        <Textarea
+        <MarkdownField
           rows={3}
           placeholder="核心表述 *"
           value={draft.statement}
-          onChange={(e) => patch("statement", e.target.value)}
+          onChange={(v) => patch("statement", v)}
         />
         <Input
           placeholder="出处"

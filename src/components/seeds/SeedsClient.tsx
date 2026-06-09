@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MODULE_INTRO } from "@/lib/module-copy";
+import { withSeedsReturn } from "@/lib/navigation/return-to";
 import { SeedDataOverview } from "@/components/seeds/SeedDataOverview";
 import { SeedKanban } from "@/components/seeds/SeedKanban";
 import { Card } from "@/components/ui/card";
@@ -44,7 +46,7 @@ export function SeedsClient() {
     <div className="space-y-4 bg-[#F8FAFC] p-4 lg:p-6">
       <PageHeader
         title="种子"
-        description="萌芽 · 生长 · 归档。各列标题右侧可筛选。"
+        description={MODULE_INTRO.seeds}
       />
 
       <SeedDataOverview seeds={seeds} />
@@ -82,7 +84,7 @@ export function SeedsClient() {
           <p className="text-[11px] text-slate-500">
             已归档种子也可在
             <Link
-              href="/archive?tab=seeds"
+              href={withSeedsReturn("/archive?tab=seeds")}
               className="mx-1 text-[#1D4ED8] hover:underline"
             >
               总归档箱 · 种子

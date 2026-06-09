@@ -21,7 +21,9 @@ export type WidgetId =
   | "activity"
   | "modules"
   | "recent"
-  | "seeds";
+  | "seeds"
+  | "thinking_pin"
+  | "decision_pin";
 
 export type WidgetStyle =
   | "default"
@@ -90,6 +92,8 @@ export type WidgetFilters = {
   >;
   recentLimit?: number;
   decisionSource?: "all" | "active" | "passive";
+  /** 固定到仪表盘的实体 id（思考/决策条目） */
+  pinEntityIds?: string[];
 };
 
 export type WidgetInstance = {
@@ -289,6 +293,24 @@ export const WIDGET_META: Record<
     defaultSize: "2x2",
     sizes: ALL_WIDGET_SIZES,
   },
+  thinking_pin: {
+    label: "思考条目",
+    description: "从思考列表固定到仪表盘",
+    module: "思考",
+    styles: [{ id: "cards", label: "卡片" }],
+    defaultStyle: "cards",
+    defaultSize: "2x1",
+    sizes: ["1x1", "1x2", "2x1", "2x2"],
+  },
+  decision_pin: {
+    label: "决策条目",
+    description: "从决策列表固定到仪表盘",
+    module: "决策",
+    styles: [{ id: "cards", label: "卡片" }],
+    defaultStyle: "cards",
+    defaultSize: "2x1",
+    sizes: ["1x1", "1x2", "2x1", "2x2"],
+  },
 };
 
 export const TIME_RANGE_LABELS: Record<TimeRange, string> = {
@@ -307,7 +329,7 @@ export const WIDGET_SCOPES: Record<
   global: {
     label: "全局",
     hint: "跨模块汇总、动态与创作节奏",
-    types: ["kpi", "activity", "modules", "recent", "seeds"],
+    types: ["kpi", "activity", "modules", "recent", "seeds", "thinking_pin", "decision_pin"],
   },
   decisions: {
     label: "决策",
@@ -393,6 +415,9 @@ export function defaultFilters(type: WidgetId): WidgetFilters {
       return { timeRange: "7d" };
     case "seeds":
       return { timeRange: "all" };
+    case "thinking_pin":
+    case "decision_pin":
+      return { pinEntityIds: [], timeRange: "all" };
     default:
       return {};
   }
@@ -534,6 +559,7 @@ export function cloneLayout(layout: DashboardLayout): DashboardLayout {
         kpiKeys: i.filters.kpiKeys?.slice(),
         goalTypes: i.filters.goalTypes?.slice(),
         goalIds: i.filters.goalIds?.slice(),
+        pinEntityIds: i.filters.pinEntityIds?.slice(),
         stockModules: i.filters.stockModules?.slice(),
         recentModules: i.filters.recentModules?.slice(),
       },

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MODULE_INTRO } from "@/lib/module-copy";
 import { OriginFlashPanel } from "@/components/shared/OriginFlashPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -72,7 +73,7 @@ export function TheoriesClient() {
     <div className="space-y-5 p-4 lg:p-6">
       <PageHeader
         title="理论库"
-        description="收录待验证的道理与 SOP 假设。验证充分后可升格为模型库中的结构化框架。"
+        description={MODULE_INTRO.theories}
         subModule={{ label: "模型", href: "/models" }}
         actions={
           <Button size="sm" variant="primary" onClick={() => setCreating(true)}>

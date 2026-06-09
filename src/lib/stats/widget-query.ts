@@ -1,4 +1,7 @@
 import type { GoalWithMeta } from "@/lib/goals/storage";
+import { loadThoughtSessions } from "@/lib/thinking/storage";
+import { summarizeThoughtSession } from "@/lib/thinking/session-summary";
+import type { ThoughtSession } from "@/lib/thinking/types";
 import type { DecisionRow } from "@/types/database";
 import type { SeedSummary } from "@/lib/seeds/types";
 import type {
@@ -236,6 +239,18 @@ export type WidgetViewData = {
   activityTrend?: DashboardStats["activityTrend"];
   recentActivity?: ActivityItem[];
   seeds?: SeedSummary;
+  pinnedThinking?: Array<{
+    id: string;
+    title: string;
+    stageLabel: string;
+    href: string;
+  }>;
+  pinnedDecisions?: Array<{
+    id: string;
+    title: string;
+    conclusion: string;
+    href: string;
+  }>;
 };
 
 export function buildWidgetView(
@@ -298,6 +313,36 @@ export function buildWidgetView(
       return { title, activityTrend: stats.activityTrend };
     case "seeds":
       return { title, seeds: stats.seeds };
+    case "thinking_pin": {
+      const ids = f.pinEntityIds ?? [];
+      const pinnedThinking = loadThoughtSessions()
+        .filter((s) => ids.includes(s.id))
+        .map((s: ThoughtSession) => {
+          const summary = summarizeThoughtSession(s);
+          return {
+            id: s.id,
+            title: s.title,
+            stageLabel: summary.stageLabel,
+            href: `/thinking?session=${s.id}`,
+          };
+        });
+      return { title, pinnedThinking };
+    }
+    case "decision_pin": {
+      const ids = f.pinEntityIds ?? [];
+      const pinnedDecisions = stats.raw.decisions
+        .filter((d) => ids.includes(d.id))
+        .map((d) => ({
+          id: d.id,
+          title: d.title,
+          conclusion:
+            d.manual_conclusion?.trim() ||
+            d.final_action ||
+            "（待补充结论）",
+          href: `/decisions?detail=${d.id}`,
+        }));
+      return { title, pinnedDecisions };
+    }
     default:
       return { title };
   }

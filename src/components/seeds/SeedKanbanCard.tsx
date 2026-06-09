@@ -8,12 +8,26 @@ import {
   GOAL_PLAN_SEED_MARKER,
 } from "@/lib/seeds/classify";
 import { seedOriginLabel } from "@/lib/seeds/origin";
-import { PHASE_ICONS } from "@/lib/seeds/overview-stats";
 import { seedDisplayTitle } from "@/lib/seeds/naming";
 import type { IdeaSeed } from "@/lib/seeds/types";
+import { SEEDS_HOME, withReturn } from "@/lib/navigation/return-to";
 import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
-export function SeedKanbanCard({ seed }: { seed: IdeaSeed }) {
+const PHASE_ACCENT: Record<string, string> = {
+  sprouting: "border-l-lime-400 bg-lime-50/30",
+  growing: "border-l-emerald-400 bg-emerald-50/20",
+  archived: "border-l-slate-300 bg-slate-50/50",
+};
+
+export function SeedKanbanCard({
+  seed,
+  returnTo,
+}: {
+  seed: IdeaSeed;
+  /** 跳出后返回页，默认返回种子看板 */
+  returnTo?: string;
+}) {
   const router = useRouter();
   const meta = seedBoardMeta(seed);
   const goalPlan = isGoalPlanSeed(seed);
@@ -23,32 +37,33 @@ export function SeedKanbanCard({ seed }: { seed: IdeaSeed }) {
   return (
     <button
       type="button"
-      onClick={() => router.push(`/seeds/${seed.id}`)}
-      className="block w-full rounded-lg border border-[#EEF1F5] bg-white p-3 text-left transition hover:border-[#CBD5E1] hover:shadow-sm active:scale-[0.99]"
+      onClick={() =>
+        router.push(
+          withReturn(`/seeds/${seed.id}`, returnTo ?? SEEDS_HOME)
+        )
+      }
+      className={cn(
+        "block w-full rounded-xl border-l-[3px] px-3 py-2.5 text-left transition",
+        "hover:shadow-sm active:scale-[0.99]",
+        PHASE_ACCENT[phase] ?? "border-l-slate-300 bg-white"
+      )}
     >
-      <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
-        <span aria-hidden>{PHASE_ICONS[phase]}</span>
-        <span>{SEED_PHASE_LABELS[phase]}</span>
-        {goalPlan && phase !== "archived" && (
-          <span className="text-violet-600">· {GOAL_PLAN_SEED_MARKER}</span>
-        )}
-        <span className="ml-auto tabular-nums text-slate-400">
-          {meta.stageCount} 阶段
-        </span>
-      </div>
-
-      <p className="mt-2 text-sm font-medium leading-snug text-slate-800">
-        {title}
-      </p>
-
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-[#F1F5F9] pt-2">
-        <span className="text-[10px] text-slate-500">
-          来源 · {seedOriginLabel(seed)}
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
+          {title}
         </span>
         <span className="shrink-0 text-[10px] text-slate-400">
           {formatDate(seed.updatedAt)}
         </span>
       </div>
+      <p className="mt-1 text-[10px] text-slate-400">
+        {SEED_PHASE_LABELS[phase]}
+        {goalPlan && phase !== "archived" && (
+          <span className="text-violet-500"> · {GOAL_PLAN_SEED_MARKER}</span>
+        )}
+        <span className="text-slate-300"> · </span>
+        {seedOriginLabel(seed)}
+      </p>
     </button>
   );
 }

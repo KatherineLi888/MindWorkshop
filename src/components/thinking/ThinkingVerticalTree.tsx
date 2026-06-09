@@ -127,7 +127,8 @@ function clampTreePan(
   rootUnit: LayoutUnit,
   layout: { width: number; height: number },
   viewW: number,
-  viewH: number
+  viewH: number,
+  options?: { relaxHorizontal?: boolean }
 ) {
   if (viewW <= 0 || viewH <= 0) return pan;
   let { x, y } = pan;
@@ -141,11 +142,13 @@ function clampTreePan(
   const rootScreenX = x + rootCx * scale;
   const rootScreenY = y + rootY * scale;
 
-  if (rootScreenX < centerX - maxXDrift) {
-    x = centerX - maxXDrift - rootCx * scale;
-  }
-  if (rootScreenX > centerX + maxXDrift) {
-    x = centerX + maxXDrift - rootCx * scale;
+  if (!options?.relaxHorizontal) {
+    if (rootScreenX < centerX - maxXDrift) {
+      x = centerX - maxXDrift - rootCx * scale;
+    }
+    if (rootScreenX > centerX + maxXDrift) {
+      x = centerX + maxXDrift - rootCx * scale;
+    }
   }
   if (rootScreenY < minRootY) y = minRootY - rootY * scale;
   if (rootScreenY > maxRootY) y = maxRootY - rootY * scale;
@@ -1002,6 +1005,12 @@ function TreeCanvas({
   }, [viewRoot, session, cfg, isSessionRoot]);
 
   const rootUnit = layout?.units[0];
+  const relaxHorizontal = viewportW > 0 && viewportW < 768;
+
+  const panOptions = useMemo(
+    () => ({ relaxHorizontal }),
+    [relaxHorizontal]
+  );
 
   const applyZoom = useCallback(
     (nextScale: number) => {
@@ -1016,11 +1025,12 @@ function TreeCanvas({
           rootUnit,
           layout,
           el.clientWidth,
-          el.clientHeight
+          el.clientHeight,
+          panOptions
         )
       );
     },
-    [rootUnit, layout]
+    [rootUnit, layout, panOptions]
   );
 
   const resetTreeView = useCallback(() => {
@@ -1034,10 +1044,11 @@ function TreeCanvas({
         rootUnit,
         layout,
         el.clientWidth,
-        el.clientHeight
+        el.clientHeight,
+        panOptions
       )
     );
-  }, [rootUnit, layout]);
+  }, [rootUnit, layout, panOptions]);
 
   useLayoutEffect(() => {
     setScale(1);
@@ -1054,11 +1065,12 @@ function TreeCanvas({
         rootUnit,
         layout,
         vp.clientWidth,
-        vp.clientHeight
+        vp.clientHeight,
+        panOptions
       )
     );
     setPanInitialized(true);
-  }, [layout, rootUnit, panInitialized]);
+  }, [layout, rootUnit, panInitialized, panOptions]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -1075,12 +1087,13 @@ function TreeCanvas({
 
   const canvasSize = useMemo(() => {
     if (!layout) return { w: 800, h: 600 };
-    const w = Math.max(viewportW || 800, layout.width + 120);
+    const scaledW = layout.width * scale + 80;
+    const w = Math.max(viewportW || 800, scaledW, layout.width + 120);
     return {
       w,
-      h: Math.max(600, layout.height + 120),
+      h: Math.max(600, layout.height * scale + 120),
     };
-  }, [layout, viewportW]);
+  }, [layout, viewportW, scale]);
 
   const openChildPicker = useCallback(
     (nodeId: string) => {
@@ -1179,11 +1192,12 @@ function TreeCanvas({
           rootUnit,
           layout,
           el.clientWidth,
-          el.clientHeight
+          el.clientHeight,
+          panOptions
         )
       );
     },
-    [dragging, rootUnit, layout, scale]
+    [dragging, rootUnit, layout, scale, panOptions]
   );
 
   const onPointerUp = useCallback(

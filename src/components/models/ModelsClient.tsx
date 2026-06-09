@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ModelApplicationFlowRow } from "@/components/models/ModelApplicationFlowRow";
 import { useModels } from "@/components/models/ModelsContext";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MODULE_INTRO } from "@/lib/module-copy";
 import { OriginFlashPanel } from "@/components/shared/OriginFlashPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,8 +29,16 @@ export function ModelsClient() {
     <div className="space-y-5 p-4 lg:p-6">
       <PageHeader
         title="思维模型"
-        description="选择模型进行套用，记录会展示在下方。待验证的洞察请先入「理论库」。"
+        description={MODULE_INTRO.models}
         subModule={{ label: "理论库", href: "/theories" }}
+        actions={
+          <Link
+            href="/models/library"
+            className="rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+          >
+            模型库
+          </Link>
+        }
       />
 
       {triageId && <OriginFlashPanel triageId={triageId} />}

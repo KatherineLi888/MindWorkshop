@@ -10,6 +10,12 @@ export const STATS_NAV = {
   icon: "📊",
 } as const;
 
+export const AI_NAV = {
+  href: "/ai",
+  label: "AI 助手",
+  icon: "✨",
+} as const;
+
 export const SEEDS_NAV = {
   href: "/seeds",
   label: "种子",
@@ -75,6 +81,10 @@ export const ARCHIVE_NAV = {
 
 export function isHomeNavActive(pathname: string): boolean {
   return pathname === HOME_NAV.href;
+}
+
+export function isAiNavActive(pathname: string): boolean {
+  return pathname === AI_NAV.href || pathname.startsWith("/ai/");
 }
 
 export function isStatsNavActive(pathname: string): boolean {

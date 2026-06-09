@@ -1,163 +1,182 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { buildAiContextSnapshot } from "@/lib/ai/context";
+import {
+  aiKeyMissingMessage,
+  aiModelFor,
+  createAiClient,
+  normalizeAiProvider,
+  resolveEnvApiKey,
+  type AiProvider,
+} from "@/lib/ai/provider";
+import {
+  AI_SYSTEM_PROMPT,
+  AI_TOOLS,
+  executeAiTool,
+  type AiLink,
+  type AiMutation,
+} from "@/lib/ai/tools";
 import { AUTH_ENABLED } from "@/lib/config";
+import type { ReviewRecord } from "@/lib/review/types";
+import type { GoalRow } from "@/types/database";
 
-const TOOLS = [
-  {
-    type: "function" as const,
-    function: {
-      name: "create_goal",
-      description: "创建目标",
-      parameters: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          goal_type: { type: "string", enum: ["near", "long", "pending"] },
-        },
-        required: ["title", "goal_type"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "create_decision",
-      description: "创建决策记录草稿",
-      parameters: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          source: { type: "string", enum: ["active", "passive"] },
-        },
-        required: ["title", "source"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "list_goals",
-      description: "列出用户目标",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-];
+type HistoryMessage = { role: "user" | "assistant"; content: string };
+
+const MAX_TOOL_ROUNDS = 5;
+const MAX_HISTORY = 24;
 
 export async function POST(req: Request) {
-  const { message, apiKey: clientKey } = await req.json();
+  const body = await req.json();
+  const message = body.message as string | undefined;
+  const clientKey = body.apiKey as string | undefined;
+  const clientProvider = body.apiProvider as string | undefined;
+  const history = (body.history as HistoryMessage[] | undefined) ?? [];
+  const localGoals = (body.localGoals as GoalRow[] | undefined) ?? [];
+  const localReviews = (body.localReviews as ReviewRecord[] | undefined) ?? [];
+
   if (!message?.trim()) {
     return NextResponse.json({ error: "消息为空" }, { status: 400 });
   }
 
+  let provider: AiProvider = normalizeAiProvider(clientProvider);
   let apiKey =
-    (typeof clientKey === "string" ? clientKey : undefined) ||
-    process.env.OPENAI_API_KEY;
+    (typeof clientKey === "string" && clientKey.trim() ? clientKey : undefined) ||
+    resolveEnvApiKey(provider);
+
+  let userId: string | null = null;
+  let supabase: Awaited<
+    ReturnType<(typeof import("@/lib/supabase/server"))["createClient"]>
+  > | null = null;
 
   if (AUTH_ENABLED) {
     const { createClient } = await import("@/lib/supabase/server");
-    const supabase = await createClient();
+    supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "请先登录" }, { status: 401 });
     }
+    userId = user.id;
     const { data: settings } = await supabase
       .from("user_settings")
-      .select("openai_api_key")
+      .select("openai_api_key, ai_provider")
       .eq("user_id", user.id)
       .maybeSingle();
-    apiKey = settings?.openai_api_key || apiKey;
+    provider = normalizeAiProvider(settings?.ai_provider ?? provider);
+    apiKey =
+      settings?.openai_api_key ||
+      resolveEnvApiKey(provider) ||
+      apiKey;
   }
+
   if (!apiKey) {
     return NextResponse.json(
-      { error: "请在设置页填入 OpenAI API Key" },
+      { error: aiKeyMissingMessage(provider) },
       { status: 400 }
     );
   }
 
-  const openai = new OpenAI({ apiKey });
-  const links: { href: string; label: string }[] = [];
+  const client = createAiClient(apiKey, provider);
+  const links: AiLink[] = [];
+  const mutations: AiMutation[] = [];
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content:
-          "你是思绪工坊助手。用简洁中文回复。需要创建或查询时用 function calling。创建后告知用户并给出可点击路径。",
-      },
-      { role: "user", content: message },
-    ],
-    tools: TOOLS,
-    tool_choice: "auto",
+  const contextSnapshot = await buildAiContextSnapshot({
+    userId: userId ?? undefined,
+    supabase: supabase ?? undefined,
+    localGoals,
+    localReviews,
   });
 
-  const choice = completion.choices[0];
-  let reply =
-    choice.message?.content ||
-    "已完成操作。";
+  const prior = history
+    .filter(
+      (m) =>
+        (m.role === "user" || m.role === "assistant") &&
+        typeof m.content === "string" &&
+        m.content.trim()
+    )
+    .slice(-MAX_HISTORY);
 
-  const toolCalls = choice.message?.tool_calls;
-  if (toolCalls?.length) {
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: `${AI_SYSTEM_PROMPT}\n\n## 当前数据快照\n${contextSnapshot}`,
+    },
+    ...prior.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+    { role: "user", content: message.trim() },
+  ];
+
+  let reply = "抱歉，我暂时无法回答。";
+  let toolsRan = false;
+
+  const toolCtx = {
+    userId: userId ?? undefined,
+    supabase: supabase ?? undefined,
+    localGoals,
+    localReviews,
+  };
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const completion = await client.chat.completions.create({
+      model: aiModelFor(provider),
+      messages,
+      tools: [...AI_TOOLS],
+      tool_choice: "auto",
+    });
+
+    const choice = completion.choices[0]?.message;
+    if (!choice) break;
+
+    const toolCalls = choice.tool_calls;
+    if (!toolCalls?.length) {
+      if (!toolsRan) {
+        reply = choice.content?.trim() || reply;
+      }
+      break;
+    }
+
+    toolsRan = true;
+    messages.push(choice);
+
     for (const tc of toolCalls) {
+      if (tc.type !== "function") continue;
       const fn = tc.function;
-      const args = JSON.parse(fn.arguments || "{}");
-      if (fn.name === "create_goal" && AUTH_ENABLED) {
-        const { createClient } = await import("@/lib/supabase/server");
-        const supabase = await createClient();
-        const { data } = await supabase
-          .from("goals")
-          .insert({
-            user_id: user.id,
-            title: args.title,
-            goal_type: args.goal_type,
-            smart_current: {},
-          })
-          .select("id")
-          .single();
-        if (data) {
-          links.push({ href: `/goals?id=${data.id}`, label: `目标：${args.title}` });
-          reply = `已创建目标「${args.title}」。请前往 SMART 向导完善。`;
-        }
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(fn.arguments || "{}");
+      } catch {
+        args = {};
       }
-      if (fn.name === "create_decision" && AUTH_ENABLED) {
-        const { createClient } = await import("@/lib/supabase/server");
-        const supabase = await createClient();
-        const { data } = await supabase
-          .from("decisions")
-          .insert({
-            user_id: user.id,
-            title: args.title,
-            source: args.source,
-            path_summary: "AI 创建草稿",
-            final_action: "待完成决策树",
-            flow_state: {},
-          })
-          .select("id")
-          .single();
-        if (data) {
-          links.push({
-            href: `/decisions?id=${data.id}`,
-            label: `决策：${args.title}`,
-          });
-          reply = `已创建决策草稿「${args.title}」，请打开完成决策树。`;
-        }
-      }
-      if (fn.name === "list_goals" && AUTH_ENABLED) {
-        const { createClient } = await import("@/lib/supabase/server");
-        const supabase = await createClient();
-        const { data: goals } = await supabase
-          .from("goals")
-          .select("title, goal_type")
-          .eq("user_id", user.id)
-          .limit(10);
-        reply = goals?.length
-          ? `你的目标：\n${goals.map((g) => `- ${g.title}（${g.goal_type}）`).join("\n")}`
-          : "暂无目标。";
-      }
+
+      const result = await executeAiTool(fn.name, args, toolCtx);
+      links.push(...result.links);
+      mutations.push(...result.mutations);
+
+      messages.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: result.content,
+      });
     }
   }
 
-  return NextResponse.json({ reply, links });
+  if (toolsRan) {
+    const final = await client.chat.completions.create({
+      model: aiModelFor(provider),
+      messages,
+    });
+    reply = final.choices[0]?.message?.content?.trim() || reply;
+  }
+
+  const claimsCreated = /已创建|已帮你创建|创建成功|已创立/.test(reply);
+  const didCreate = mutations.length > 0;
+  if (claimsCreated && !didCreate) {
+    reply +=
+      "\n\n⚠️ 本次可能未真正写入系统。请再说一次具体操作（如「帮我创建目标复盘」），我会执行创建。";
+  }
+
+  return NextResponse.json({ reply, links, mutations });
 }

@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HeaderAddButton } from "@/components/layout/HeaderAddButton";
+import { MODULE_INTRO } from "@/lib/module-copy";
+import { pinDecisionToDashboard } from "@/lib/stats/pin-to-dashboard";
 import { AUTH_ENABLED } from "@/lib/config";
 import { computeDecisionTags } from "@/lib/decision-tree/tags";
 import { SOURCE_LABELS } from "@/lib/decision-tree/tags";
@@ -105,11 +108,13 @@ export function DecisionsClient({
   }, [load]);
 
   useEffect(() => {
-    const fromInbox = searchParams.get("new");
+    const isNew = searchParams.get("new");
     const presetTitle = searchParams.get("title");
-    if (fromInbox === "1" && presetTitle) {
-      setTitle(decodeURIComponent(presetTitle));
+    if (isNew === "1") {
       setMode("new");
+      if (presetTitle) {
+        setTitle(decodeURIComponent(presetTitle));
+      }
     }
   }, [searchParams]);
 
@@ -305,13 +310,9 @@ export function DecisionsClient({
             onChange={setFilters}
             inline
           />
-          {mode === "new" ? (
+          {mode === "new" && (
             <Button variant="ghost" size="sm" onClick={() => setMode("list")}>
               取消新建
-            </Button>
-          ) : (
-            <Button variant="primary" size="sm" onClick={() => setMode("new")}>
-              + 新建决策
             </Button>
           )}
         </div>
@@ -352,7 +353,7 @@ export function DecisionsClient({
               {archiveBox
                 ? "该栏目暂无归档"
                 : pool.length === 0
-                  ? "暂无决策，点击「新建决策」开始"
+                  ? "暂无决策，点击右上角 + 开始"
                   : "没有符合筛选条件的决策"}
             </p>
           </div>
@@ -400,11 +401,7 @@ export function DecisionsClient({
     >
       <PageHeader
         title={archiveBox ? "决策 · 已归档" : "时间管理决策树"}
-        description={
-          archiveBox
-            ? undefined
-            : "结构化决策，标签自动归纳执行方式与结果"
-        }
+        description={archiveBox ? undefined : MODULE_INTRO.decisions}
         secondaryLink={
           !archiveBox && !embeddedInArchive
             ? {
@@ -414,11 +411,22 @@ export function DecisionsClient({
             : undefined
         }
         actions={
-          <ExportExcelButton
-            rows={exportRows}
-            fileName={archiveBox ? "decisions-archive.xlsx" : "decisions.xlsx"}
-            sheetName="决策"
-          />
+          <div className="flex items-center gap-2">
+            <ExportExcelButton
+              rows={exportRows}
+              fileName={archiveBox ? "decisions-archive.xlsx" : "decisions.xlsx"}
+              sheetName="决策"
+            />
+            {!archiveBox && mode !== "new" && (
+              <HeaderAddButton
+                title="新建决策"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMode("new");
+                }}
+              />
+            )}
+          </div>
         }
       />
 
@@ -513,7 +521,18 @@ function DecisionContextMenu({
       y={y}
       onClose={onClose}
       excludeStages={archiveBox || row.tag_outcome === "abandon" ? ["goals", "track"] : []}
-      extraItems={[archiveItem]}
+      extraItems={[
+        {
+          type: "action",
+          label: "在仪表盘中显示",
+          onClick: () => {
+            const result = pinDecisionToDashboard(row.id, row.title);
+            if (!result.ok) window.alert(result.reason);
+          },
+        },
+        { type: "separator" },
+        archiveItem,
+      ]}
       onAddTrack={onAddTrack}
     />
   );

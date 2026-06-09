@@ -1,5 +1,6 @@
 "use client";
 
+import { MarkdownField } from "@/components/shared/MarkdownField";
 import { cn } from "@/lib/utils";
 import type { PeriodMiniFunnel, PeriodStatItem, ReviewHighlight } from "@/lib/review/types";
 
@@ -125,13 +126,14 @@ export function ReviewDataPanel({
                     {h.statValue}
                   </span>
                 </p>
-                <textarea
-                  className="mt-1.5 w-full resize-none rounded border border-[#E2E8F0] bg-white px-2 py-1.5 text-xs leading-relaxed text-slate-700 outline-none focus:border-[#93C5FD]"
-                  rows={3}
-                  placeholder="这段数据让你想到什么？下一步想怎么调整？"
-                  value={h.reflection}
-                  onChange={(e) => onHighlightChange(h.id, e.target.value)}
-                />
+                <div className="mt-1.5">
+                  <MarkdownField
+                    rows={3}
+                    value={h.reflection}
+                    onChange={(v) => onHighlightChange(h.id, v)}
+                    placeholder="这段数据让你想到什么？下一步想怎么调整？"
+                  />
+                </div>
               </div>
             </div>
           ))

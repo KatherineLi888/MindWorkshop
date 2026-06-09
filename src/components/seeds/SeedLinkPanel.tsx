@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { SeedLifeDots } from "@/components/seeds/SeedLifeTimeline";
 import { ensureEntityHasSeed, getSeedForEntity } from "@/lib/seeds/ensure";
+import {
+  appendReturnTo,
+  parseReturnTo,
+  SEEDS_HOME,
+  STATS_HOME,
+} from "@/lib/navigation/return-to";
 import type { IdeaSeed, SeedStage } from "@/lib/seeds/types";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +25,20 @@ type Props = {
   className?: string;
 };
 
-export function SeedLinkPanel({
+function resolveSeedReturn(
+  pathname: string,
+  searchParams: URLSearchParams | null
+): string | null {
+  const existing = parseReturnTo(searchParams);
+  if (existing === STATS_HOME || existing?.startsWith(SEEDS_HOME)) {
+    return existing;
+  }
+  if (pathname.startsWith(SEEDS_HOME)) return SEEDS_HOME;
+  if (pathname === STATS_HOME) return STATS_HOME;
+  return null;
+}
+
+function SeedLinkPanelInner({
   entityType,
   entityId,
   title,
@@ -28,6 +48,8 @@ export function SeedLinkPanel({
   compact = false,
   className,
 }: Props) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [seed, setSeed] = useState<IdeaSeed | null>(null);
 
   const refresh = useCallback(() => {
@@ -56,6 +78,11 @@ export function SeedLinkPanel({
 
   if (!entityId) return null;
 
+  const back = resolveSeedReturn(pathname, searchParams);
+  const seedPath = seed ? `/seeds/${seed.id}` : SEEDS_HOME;
+  const seedHref = back ? appendReturnTo(seedPath, back) : seedPath;
+  const allHref = back ? appendReturnTo(SEEDS_HOME, back) : SEEDS_HOME;
+
   if (compact) {
     return (
       <div
@@ -66,7 +93,7 @@ export function SeedLinkPanel({
       >
         <span className="text-[9px] text-slate-400">◌</span>
         <Link
-          href={seed ? `/seeds/${seed.id}` : "/seeds"}
+          href={seedHref}
           className="max-w-[8rem] truncate text-[10px] font-medium text-[#1D4ED8] hover:underline"
         >
           {seed?.title ?? "未命名种子"}
@@ -96,7 +123,7 @@ export function SeedLinkPanel({
         </span>
       </div>
       <Link
-        href={seed ? `/seeds/${seed.id}` : "/seeds"}
+        href={seedHref}
         className="mt-1 block text-sm font-medium text-[#1D4ED8] hover:underline"
       >
         {seed?.title ?? "未命名种子"}
@@ -104,10 +131,18 @@ export function SeedLinkPanel({
       {seed && <SeedLifeDots seed={seed} />}
       <p className="mt-1 text-[9px] text-slate-400">
         一切想法的原始轨迹 ·{" "}
-        <Link href="/seeds" className="text-[#1D4ED8] hover:underline">
+        <Link href={allHref} className="text-[#1D4ED8] hover:underline">
           查看全部种子
         </Link>
       </p>
     </div>
+  );
+}
+
+export function SeedLinkPanel(props: Props) {
+  return (
+    <Suspense fallback={null}>
+      <SeedLinkPanelInner {...props} />
+    </Suspense>
   );
 }

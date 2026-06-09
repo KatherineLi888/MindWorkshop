@@ -11,12 +11,87 @@ import {
   gridItemStyle,
   maxOccupiedRow,
   moveWidgetTo,
+  sizeToSpan,
   type GridAnchor,
 } from "@/lib/stats/grid-layout";
 import type { ViewTimeScope } from "@/lib/stats/dashboard-views";
+import { DashboardWidgetFrame } from "@/components/stats/DashboardWidgetFrame";
+import { STATS_HOME } from "@/lib/navigation/return-to";
 import { buildWidgetView } from "@/lib/stats/widget-query";
+import { useDashboardCollapse } from "@/lib/stats/use-dashboard-collapse";
+import { cn } from "@/lib/utils";
 
 const LONG_PRESS_MS = 480;
+
+function WidgetGridCell({
+  instance,
+  stats,
+  viewScope,
+  editing,
+  isMoving,
+  onContextMenu,
+  onPointerDown,
+  onPointerUp,
+  onPointerLeave,
+  onPointerCancel,
+  children,
+}: {
+  instance: WidgetInstance;
+  stats: DashboardStats;
+  viewScope?: ViewTimeScope | null;
+  editing: boolean;
+  isMoving: boolean;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onPointerDown?: () => void;
+  onPointerUp?: () => void;
+  onPointerLeave?: () => void;
+  onPointerCancel?: () => void;
+  children?: React.ReactNode;
+}) {
+  const sectionId = `widget-${instance.instanceId}`;
+  const { collapsed } = useDashboardCollapse(sectionId);
+  const view = buildWidgetView(instance, stats, viewScope);
+  const { rowSpan } = sizeToSpan(instance.size);
+
+  return (
+    <div
+      style={{
+        ...gridItemStyle(
+          instance.row,
+          instance.col,
+          instance.size,
+          collapsed
+        ),
+        minHeight: collapsed ? undefined : `${rowSpan * 7.5}rem`,
+      }}
+      className={cn(
+        "relative",
+        collapsed && "self-start",
+        isMoving && "z-20 ring-2 ring-amber-400 ring-offset-2",
+        editing && !collapsed && "ring-1 ring-[#BFDBFE]/60"
+      )}
+      onContextMenu={onContextMenu}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+      onPointerCancel={onPointerCancel}
+    >
+      {editing && !collapsed && (
+        <p className="pointer-events-none absolute bottom-1 left-2 text-[9px] text-slate-400">
+          右键编辑 · 长按拖动
+        </p>
+      )}
+      <DashboardWidgetFrame sectionId={sectionId} title={view.title}>
+        {renderWidgetView(instance, view, {
+          interactive: !editing,
+          dense: instance.size === "1x1",
+          returnTo: STATS_HOME,
+        })}
+      </DashboardWidgetFrame>
+      {children}
+    </div>
+  );
+}
 
 type Props = {
   instances: WidgetInstance[];
@@ -114,8 +189,8 @@ export function DashboardGrid({
           editing ? "rounded-2xl bg-slate-100/70 p-3" : ""
         }`}
         style={{
-          gridAutoRows: "minmax(7.5rem, auto)",
-          gridTemplateRows: `repeat(${totalRows}, minmax(7.5rem, auto))`,
+          gridAutoRows: "minmax(2.25rem, auto)",
+          gridTemplateRows: `repeat(${totalRows}, minmax(2.25rem, auto))`,
         }}
       >
         {cells.map((cell) => {
@@ -140,16 +215,16 @@ export function DashboardGrid({
           }
 
           const { instance } = cell;
-          const view = buildWidgetView(instance, stats, viewScope);
           const isMoving = movingId === instance.instanceId;
 
           return (
-            <div
+            <WidgetGridCell
               key={instance.instanceId}
-              style={gridItemStyle(instance.row, instance.col, instance.size)}
-              className={`relative min-h-[7.5rem] ${
-                isMoving ? "z-20 ring-2 ring-amber-400 ring-offset-2" : ""
-              } ${editing ? "ring-1 ring-[#BFDBFE]/60" : ""}`}
+              instance={instance}
+              stats={stats}
+              viewScope={viewScope}
+              editing={editing}
+              isMoving={isMoving}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -167,19 +242,7 @@ export function DashboardGrid({
               onPointerUp={editing ? clearPress : undefined}
               onPointerLeave={editing ? clearPress : undefined}
               onPointerCancel={editing ? clearPress : undefined}
-            >
-              {editing && (
-                <p className="pointer-events-none absolute bottom-1 left-2 text-[9px] text-slate-400">
-                  右键编辑 · 长按拖动
-                </p>
-              )}
-              <div className="h-full">
-                {renderWidgetView(instance, view, {
-                  interactive: !editing,
-                  dense: instance.size === "1x1",
-                })}
-              </div>
-            </div>
+            />
           );
         })}
       </div>

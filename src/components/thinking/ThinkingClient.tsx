@@ -10,9 +10,14 @@ import { ThinkingVerticalTree } from "@/components/thinking/ThinkingVerticalTree
 import { useThinkingMethods } from "@/components/thinking/ThinkingMethodsContext";
 import { ThinkingNodeEditPanel } from "@/components/thinking/ThinkingNodeEditPanel";
 import { ThinkingRootEditor } from "@/components/thinking/ThinkingRootEditor";
+import { ThinkingMinimalQaView } from "@/components/thinking/ThinkingMinimalQaView";
 import { ThinkingTextFlow } from "@/components/thinking/ThinkingTextFlow";
 import type { PendingMethod } from "@/components/thinking/thinking-editor-types";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HeaderAddButton } from "@/components/layout/HeaderAddButton";
+import { MODULE_INTRO } from "@/lib/module-copy";
+import { ThinkingListCard } from "@/components/thinking/ThinkingListCard";
+import { pinThinkingToDashboard } from "@/lib/stats/pin-to-dashboard";
 import { FlowAdvanceBar } from "@/components/flow/FlowAdvanceBar";
 import { FlowListContextMenu } from "@/components/flow/FlowListContextMenu";
 import { registerFlowEntry } from "@/lib/flow/pipeline-storage";
@@ -60,6 +65,7 @@ export function ThinkingClient() {
     x: number;
     y: number;
   } | null>(null);
+  const [showNew, setShowNew] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastFocusedId, setLastFocusedId] = useState("");
@@ -439,6 +445,19 @@ export function ThinkingClient() {
     submitQuestionUnderParent(parentId, methodId, draft, meta);
   };
 
+  const submitChildQuestion = (
+    refNodeId: string,
+    methodId: ThinkingMethodId,
+    draft: string,
+    meta?: AddQuestionMeta
+  ) => {
+    if (!session) return;
+    const refNode = session.nodes.find((n) => n.id === refNodeId);
+    if (!refNode) return;
+    const parentId = resolveChildMountParentId(session, refNode);
+    submitQuestionUnderParent(parentId, methodId, draft, meta);
+  };
+
   const submitMergeUnderText = (nodeIds: string[], content: string) => {
     if (!session || nodeIds.length < 2) return;
     const newNode: ThoughtNode = {
@@ -455,85 +474,76 @@ export function ThinkingClient() {
   if (!activeId || !session) {
     return (
       <div
-        className="mx-auto max-w-2xl space-y-4 p-4 lg:p-5"
+        className="mx-auto max-w-2xl space-y-3 p-3 lg:p-4"
         onClick={() => setContextMenu(null)}
       >
         <PageHeader
           title="思考"
-          description="追问、拆分、利弊、反推等方法展开思路；从左到右形成脉络，可多选合并。"
+          description={MODULE_INTRO.thinking}
           actions={
-            <Link
-              href="/thinking/methods"
-              className="rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
-            >
-              方法库
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/thinking/methods"
+                className="rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+              >
+                方法库
+              </Link>
+              <HeaderAddButton
+                title="开始思考"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNew(true);
+                }}
+              />
+            </div>
           }
         />
 
-        <Card className="bg-white">
-          <label className="text-xs font-medium text-slate-600">
-            新建思考主题
-          </label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Input
-              className="min-w-0 flex-1"
-              placeholder="例如：是否要考研？"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createSession()}
-            />
-            <Button
-              variant="primary"
-              onClick={createSession}
-              disabled={!newTitle.trim()}
-            >
-              开始思考
-            </Button>
-          </div>
-        </Card>
+        {showNew && (
+          <Card className="bg-white p-3">
+            <label className="text-xs font-medium text-slate-600">
+              新建思考主题
+            </label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Input
+                className="min-w-0 flex-1"
+                placeholder="例如：是否要考研？"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createSession()}
+                autoFocus
+              />
+              <Button
+                variant="primary"
+                onClick={() => {
+                  createSession();
+                  setShowNew(false);
+                }}
+                disabled={!newTitle.trim()}
+              >
+                开始思考
+              </Button>
+              <Button variant="ghost" onClick={() => setShowNew(false)}>
+                取消
+              </Button>
+            </div>
+          </Card>
+        )}
 
         <ul className="space-y-2">
           {sessions.map((s) => {
             const summary = summarizeThoughtSession(s);
             return (
             <li key={s.id}>
-              <Card className="bg-white p-0">
-                <button
-                  type="button"
-                  className="w-full px-4 py-2.5 text-left transition-colors hover:bg-[#FAFBFC]"
-                  onClick={() => openSession(s)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setContextMenu({ session: s, x: e.clientX, y: e.clientY });
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-slate-800">
-                      {s.title}
-                    </p>
-                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-                      {summary.stageLabel}
-                    </span>
-                  </div>
-
-                  {summary.currentQuestion ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
-                      <span className="text-slate-500">待答 · </span>
-                      {summary.currentQuestion}
-                    </p>
-                  ) : summary.conclusion ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
-                      <span className="text-slate-500">结论 · </span>
-                      {summary.conclusion}
-                    </p>
-                  ) : null}
-
-                  <p className="mt-2 text-[10px] text-slate-400">
-                    {s.nodes.length} 个节点 · {formatDate(s.updatedAt)}
-                  </p>
-                </button>
-              </Card>
+              <ThinkingListCard
+                session={s}
+                summary={summary}
+                onClick={() => openSession(s)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ session: s, x: e.clientX, y: e.clientY });
+                }}
+              />
             </li>
           );
           })}
@@ -545,7 +555,7 @@ export function ThinkingClient() {
         </ul>
 
         <p className="text-center text-[10px] text-slate-400">
-          右键可删除或跳入下一环节
+          右键或长按可删除、固定到仪表盘或跳入下一环节
         </p>
 
         {contextMenu && (
@@ -557,6 +567,18 @@ export function ThinkingClient() {
             y={contextMenu.y}
             onClose={() => setContextMenu(null)}
             extraItems={[
+              {
+                type: "action",
+                label: "在仪表盘中显示",
+                onClick: () => {
+                  const result = pinThinkingToDashboard(
+                    contextMenu.session.id,
+                    contextMenu.session.title
+                  );
+                  if (!result.ok) window.alert(result.reason);
+                },
+              },
+              { type: "separator" },
               {
                 type: "action",
                 label: "删除思考",
@@ -584,7 +606,8 @@ export function ThinkingClient() {
     );
   }
 
-  const isFlowView = editorView === "text" || editorView === "tree";
+  const isFlowView =
+    editorView === "text" || editorView === "tree" || editorView === "qa";
   const rootNode = session.nodes.find((n) => n.id === rootId) ?? null;
 
   const handleFlowNodeClick = (nodeId: string) => {
@@ -687,6 +710,13 @@ export function ThinkingClient() {
               >
                 导图视角
               </button>
+              <button
+                type="button"
+                onClick={() => setEditorView("qa")}
+                className={viewTabClass(editorView === "qa")}
+              >
+                极简问答
+              </button>
             </div>
           )}
           <Button
@@ -748,7 +778,18 @@ export function ThinkingClient() {
       ) : (
         <div className="mt-1 flex min-h-0 flex-1 flex-col md:flex-row">
           <div className="min-h-0 flex-1 overflow-auto">
-            {editorView === "tree" ? (
+            {editorView === "qa" ? (
+              <ThinkingMinimalQaView
+                session={session}
+                rootId={rootId}
+                onSaveContent={updateNodeContent}
+                onAddQuestion={submitQuestionUnderParent}
+                onAddSiblingQuestion={submitSiblingQuestion}
+                onAddChildQuestion={submitChildQuestion}
+                onAddAnswer={submitAnswerUnderQuestion}
+                onDeleteNode={handleDeleteNode}
+              />
+            ) : editorView === "tree" ? (
               <ThinkingVerticalTree
                 session={session}
                 rootId={rootId}
@@ -786,10 +827,14 @@ export function ThinkingClient() {
             )}
           </div>
 
-          <ThinkingNodeEditPanel {...flowPanelProps} />
+          {editorView !== "qa" && (
+            <>
+              <ThinkingNodeEditPanel {...flowPanelProps} />
 
-          {actionNode && (
-            <ThinkingNodeEditPanel {...flowPanelProps} mobile />
+              {actionNode && (
+                <ThinkingNodeEditPanel {...flowPanelProps} mobile />
+              )}
+            </>
           )}
         </div>
       )}

@@ -8,6 +8,7 @@ import { registerFlowEntry } from "@/lib/flow/pipeline-storage";
 import { SeedLinkPanel } from "@/components/seeds/SeedLinkPanel";
 import { OriginFlashPanel } from "@/components/shared/OriginFlashPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MODULE_INTRO } from "@/lib/module-copy";
 import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -98,7 +99,7 @@ export function InboxClient() {
     >
       <PageHeader
         title="收集箱"
-        description="集中展示待定目标与未归类事项。可从条目一键发起决策或设立目标。"
+        description={MODULE_INTRO.inbox}
         secondaryLink={{ label: "决策树 →", href: "/decisions" }}
         actions={
           <ExportExcelButton rows={exportRows} fileName="inbox.xlsx" sheetName="收集箱" />

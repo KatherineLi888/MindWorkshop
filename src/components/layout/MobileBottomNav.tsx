@@ -2,163 +2,154 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
-  ARCHIVE_NAV,
   FLOW_NAV_ITEMS,
-  HOME_NAV,
   KNOWLEDGE_NAV_GROUP,
   ROOT_NAV_GROUP,
   STATS_NAV,
-  THINKING_NAV,
   isArchiveNavActive,
-  isHomeNavActive,
+  isInboxNavActive,
   isNavItemActive,
+  isSeedsNavActive,
   isStatsNavActive,
   isThinkingNavActive,
 } from "./nav-config";
+import { MobileCreateMenu } from "@/components/layout/MobileCreateMenu";
+import { MobileIdeasMenu } from "@/components/layout/MobileIdeasMenu";
+import { MobileKnowledgeMenu } from "@/components/layout/MobileKnowledgeMenu";
+import { MobileMoreMenu } from "@/components/layout/MobileMoreMenu";
 import { cn } from "@/lib/utils";
 
-const DECISIONS_NAV = FLOW_NAV_ITEMS.find((i) => i.href === "/decisions")!;
-const GOALS_NAV = FLOW_NAV_ITEMS.find((i) => i.href === "/goals")!;
-
-const MORE_LINKS = [
-  HOME_NAV,
-  STATS_NAV,
-  ...ROOT_NAV_GROUP.items,
-  ...FLOW_NAV_ITEMS.filter(
-    (i) => !["/thinking", "/decisions", "/goals"].includes(i.href)
-  ),
-  ...KNOWLEDGE_NAV_GROUP.items,
-  ARCHIVE_NAV,
-  { href: "/settings", label: "设置", icon: "⚙" },
+const IDEAS_PATHS = [
+  ...ROOT_NAV_GROUP.items.map((i) => i.href),
+  ...FLOW_NAV_ITEMS.map((i) => i.href),
 ] as const;
 
-function tabClass(active: boolean) {
+function tabClass(active: boolean, compact = false) {
   return cn(
-    "flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[10px] transition",
+    "flex flex-col items-center justify-center gap-0.5 transition active:opacity-80",
+    compact ? "min-w-0 px-1 py-1 text-[9px]" : "flex-1 py-1 text-[10px]",
     active ? "font-medium text-[var(--primary)]" : "text-slate-500"
+  );
+}
+
+function isIdeasNavActive(pathname: string): boolean {
+  return IDEAS_PATHS.some(
+    (href) =>
+      href === "/inbox"
+        ? isInboxNavActive(pathname)
+        : href === "/seeds"
+          ? isSeedsNavActive(pathname)
+          : href === "/thinking"
+            ? isThinkingNavActive(pathname)
+            : isNavItemActive(pathname, href)
+  );
+}
+
+function isKnowledgeNavActive(pathname: string): boolean {
+  return KNOWLEDGE_NAV_GROUP.items.some((item) =>
+    isNavItemActive(pathname, item.href)
   );
 }
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const [ideasOpen, setIdeasOpen] = useState(false);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onPointer = (e: MouseEvent) => {
-      if (sheetRef.current && !sheetRef.current.contains(e.target as Node)) {
-        setMoreOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", onPointer);
-    return () => window.removeEventListener("mousedown", onPointer);
-  }, [moreOpen]);
-
-  const moreActive = MORE_LINKS.some(
-    (item) =>
-      item.href !== HOME_NAV.href &&
-      (pathname === item.href || pathname.startsWith(`${item.href}/`))
-  );
+  const ideasActive = isIdeasNavActive(pathname) || ideasOpen;
+  const knowledgeActive = isKnowledgeNavActive(pathname) || knowledgeOpen;
+  const statsActive = isStatsNavActive(pathname);
+  const moreActive =
+    isArchiveNavActive(pathname) ||
+    pathname === "/settings" ||
+    pathname.startsWith("/settings/") ||
+    moreOpen;
 
   return (
     <>
-      {moreOpen && (
-        <div className="fixed inset-0 z-40 bg-black/25 md:hidden" aria-hidden />
-      )}
-
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--border)] bg-[var(--background)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {moreOpen && (
-          <div
-            ref={sheetRef}
-            className="absolute bottom-full left-2 right-2 mb-2 max-h-[min(70dvh,24rem)] overflow-y-auto rounded-xl border border-[var(--border)] bg-white p-2 shadow-lg"
-          >
-            <p className="px-2 pb-1 text-[10px] font-medium text-slate-400">
-              更多
-            </p>
-            <div className="grid grid-cols-4 gap-1">
-              {MORE_LINKS.map((item) => {
-                const active =
-                  item.href === STATS_NAV.href
-                    ? isStatsNavActive(pathname)
-                    : item.href === ARCHIVE_NAV.href
-                      ? isArchiveNavActive(pathname)
-                      : item.href === HOME_NAV.href
-                        ? isHomeNavActive(pathname)
-                        : isNavItemActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className={cn(
-                      "flex flex-col items-center rounded-lg px-1 py-2 text-[10px]",
-                      active
-                        ? "bg-[var(--surface)] text-[var(--primary)]"
-                        : "text-slate-600 hover:bg-slate-50"
-                    )}
-                  >
-                    <span className="text-base leading-none">{item.icon}</span>
-                    <span className="mt-0.5 truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="relative flex h-14 items-stretch px-1">
-          <Link
-            href={THINKING_NAV.href}
-            className={tabClass(isThinkingNavActive(pathname))}
-          >
-            <span className="text-lg leading-none">{THINKING_NAV.icon}</span>
-            <span>{THINKING_NAV.label}</span>
+        <div className="relative flex h-14 items-stretch px-0.5">
+          {/* 左侧：统计 */}
+          <Link href={STATS_NAV.href} className={tabClass(statsActive)}>
+            <span className="text-lg leading-none">{STATS_NAV.icon}</span>
+            <span>{STATS_NAV.label}</span>
           </Link>
 
-          <Link
-            href={DECISIONS_NAV.href}
-            className={tabClass(isNavItemActive(pathname, DECISIONS_NAV.href))}
-          >
-            <span className="text-lg leading-none">{DECISIONS_NAV.icon}</span>
-            <span>{DECISIONS_NAV.label}</span>
-          </Link>
-
-          <div className="flex flex-1 items-center justify-center">
-            <Link
-              href={HOME_NAV.href}
-              aria-label="首页"
-              className={cn(
-                "-mt-5 flex h-12 w-12 items-center justify-center rounded-full text-2xl font-light text-white shadow-md transition active:scale-95",
-                isHomeNavActive(pathname)
-                  ? "bg-[var(--primary)] ring-2 ring-[var(--primary)]/30"
-                  : "bg-[var(--primary)] hover:brightness-105"
-              )}
-            >
-              +
-            </Link>
-          </div>
-
-          <Link
-            href={GOALS_NAV.href}
-            className={tabClass(isNavItemActive(pathname, GOALS_NAV.href))}
-          >
-            <span className="text-lg leading-none">{GOALS_NAV.icon}</span>
-            <span>{GOALS_NAV.label}</span>
-          </Link>
-
+          {/* 中间：想法 */}
           <button
             type="button"
-            onClick={() => setMoreOpen((v) => !v)}
-            className={tabClass(moreActive || moreOpen)}
+            onClick={() => {
+              setKnowledgeOpen(false);
+              setCreateOpen(false);
+              setMoreOpen(false);
+              setIdeasOpen((v) => !v);
+            }}
+            className={tabClass(ideasActive)}
+          >
+            <span className="text-lg leading-none">💡</span>
+            <span>想法</span>
+          </button>
+
+          {/* 居中加号 */}
+          <div className="flex w-14 shrink-0 items-center justify-center">
+            <button
+              type="button"
+              aria-label="新建"
+              onClick={() => {
+                setIdeasOpen(false);
+                setKnowledgeOpen(false);
+                setMoreOpen(false);
+                setCreateOpen(true);
+              }}
+              className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)] text-2xl font-light text-white shadow-md transition hover:brightness-105 active:scale-95"
+            >
+              +
+            </button>
+          </div>
+
+          {/* 右侧：知识库 */}
+          <button
+            type="button"
+            onClick={() => {
+              setIdeasOpen(false);
+              setCreateOpen(false);
+              setMoreOpen(false);
+              setKnowledgeOpen((v) => !v);
+            }}
+            className={tabClass(knowledgeActive)}
+          >
+            <span className="text-lg leading-none">📚</span>
+            <span>知识库</span>
+          </button>
+
+          {/* 右侧：更多 */}
+          <button
+            type="button"
+            onClick={() => {
+              setIdeasOpen(false);
+              setCreateOpen(false);
+              setKnowledgeOpen(false);
+              setMoreOpen((v) => !v);
+            }}
+            className={tabClass(moreActive)}
           >
             <span className="text-lg leading-none">⋯</span>
             <span>更多</span>
           </button>
         </div>
       </nav>
+
+      <MobileIdeasMenu open={ideasOpen} onClose={() => setIdeasOpen(false)} />
+      <MobileKnowledgeMenu
+        open={knowledgeOpen}
+        onClose={() => setKnowledgeOpen(false)}
+      />
+      <MobileMoreMenu open={moreOpen} onClose={() => setMoreOpen(false)} />
+      <MobileCreateMenu open={createOpen} onClose={() => setCreateOpen(false)} />
     </>
   );
 }

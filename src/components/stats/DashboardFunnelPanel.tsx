@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FunnelStack } from "@/components/flow/FunnelStack";
-import { appendReturnTo } from "@/lib/navigation/return-to";
-import {
-  buildFullFunnelAnalytics,
-} from "@/lib/flow/funnel-analytics";
+import { withStatsReturn } from "@/lib/navigation/return-to";
+import { buildFullFunnelAnalytics } from "@/lib/flow/funnel-analytics";
 import type { FullFunnelAnalytics } from "@/lib/flow/types";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +16,7 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 const MAIN_FUNNEL_BOUNDS = [100, 78, 58, 40, 22];
+const MOBILE_FUNNEL_BOUNDS = [100, 72, 52, 36, 20];
 
 type Props = {
   className?: string;
@@ -44,7 +43,7 @@ export function DashboardFunnelPanel({ className, compact = true }: Props) {
     return Math.max(1, ...data.jumpMatrix.cells.flat());
   }, [data]);
 
-  const detailHref = appendReturnTo("/home/funnel", "/stats");
+  const detailHref = withStatsReturn("/home/funnel");
 
   if (loading && !data) {
     return (
@@ -69,33 +68,48 @@ export function DashboardFunnelPanel({ className, compact = true }: Props) {
     <Link
       href={detailHref}
       className={cn(
-        "group block rounded-xl border border-[#E8ECF0] bg-white p-4 shadow-sm transition",
-        "hover:border-[#CBD5E1] hover:shadow-md",
+        "group block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/60 transition",
+        "hover:shadow-md hover:ring-slate-300/70",
         className
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-slate-700">流程漏斗 · 跳入矩阵</p>
-        <span className="text-[10px] text-[#3B82F6] opacity-0 transition group-hover:opacity-100">
-          查看详情 →
+      <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3">
+        <p className="text-[11px] font-semibold text-slate-700 sm:text-xs">
+          流程漏斗 · 跳入矩阵
+        </p>
+        <span className="text-[9px] text-[#3B82F6] sm:text-[10px] sm:opacity-0 sm:transition group-hover:sm:opacity-100">
+          详情 →
         </span>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <section className="rounded-lg border border-[#EEF1F5] bg-[#FAFBFC] p-3">
-          <p className="text-[10px] font-medium text-slate-600">主漏斗</p>
-          <p className="text-[9px] text-slate-400">思考 → 决策 → 目标 → 追踪</p>
-          <div className="mt-2 pointer-events-none">
-            <FunnelStack
-              tiers={mainTiers}
-              widthBounds={MAIN_FUNNEL_BOUNDS}
-              layerHeight={compact ? 44 : 64}
-              size="main"
-            />
+      <div className="grid gap-2 sm:gap-3 lg:grid-cols-2">
+        <section className="rounded-xl bg-slate-50/80 p-3">
+          <p className="text-[9px] font-medium text-slate-600 sm:text-[10px]">
+            主漏斗
+          </p>
+          <div className="mt-1.5 pointer-events-none sm:mt-2">
+            <div className="sm:hidden">
+              <FunnelStack
+                tiers={mainTiers}
+                widthBounds={MOBILE_FUNNEL_BOUNDS}
+                layerHeight={32}
+                size="main"
+                compact
+              />
+            </div>
+            <div className="hidden sm:block">
+              <FunnelStack
+                tiers={mainTiers}
+                widthBounds={MAIN_FUNNEL_BOUNDS}
+                layerHeight={compact ? 44 : 64}
+                size="main"
+                compact
+              />
+            </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-[#EEF1F5] bg-[#FAFBFC] p-2.5">
+        <section className="hidden rounded-lg border border-[#EEF1F5] bg-[#FAFBFC] p-2.5 sm:block">
           <p className="text-[10px] font-medium text-slate-600">跳入矩阵</p>
           <div className="mt-2 overflow-x-auto pointer-events-none">
             <table className="w-full border-collapse text-[9px]">
@@ -146,6 +160,26 @@ export function DashboardFunnelPanel({ className, compact = true }: Props) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-[#EEF1F5] bg-[#FAFBFC] px-2.5 py-2 sm:hidden">
+          <p className="text-[9px] font-medium text-slate-600">阶段跳入</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {jumpMatrix.rows.map((row, rowIdx) => {
+              const total = jumpMatrix.cells[rowIdx].reduce((a, b) => a + b, 0);
+              return (
+                <span
+                  key={row.stage}
+                  className="rounded-md bg-white px-2 py-0.5 text-[9px] text-slate-600 ring-1 ring-[#EEF1F5]"
+                >
+                  {row.label}
+                  <span className="ml-1 font-semibold tabular-nums text-[#1D4ED8]">
+                    {total}
+                  </span>
+                </span>
+              );
+            })}
           </div>
         </section>
       </div>

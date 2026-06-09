@@ -35,6 +35,7 @@ supabase/migrations/003_goal_execution.sql
 supabase/migrations/004_decision_manual_fields.sql
 supabase/migrations/005_decision_notes.sql
 supabase/migrations/006_user_scoped_local_modules.sql
+supabase/migrations/007_ai_provider.sql
 ```
 
 ### 第三步：开启邮箱注册
@@ -92,6 +93,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=你的anon密钥
 - 收集箱：`/inbox`
 - 统计：`/stats`
 - 设置：`/settings`
+- AI 助手：`/ai`
 - 登录：`/login` · 注册：`/register`
 
 ## 部署到 Netlify（已连 Git）
@@ -108,6 +110,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=你的anon密钥
 | `NEXT_PUBLIC_SUPABASE_URL` | 你的 Supabase URL | All |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 你的 anon 密钥 | All |
 | `OPENAI_API_KEY` | （可选） | All |
+| `DEEPSEEK_API_KEY` | （可选，DeepSeek） | All |
 
 `NEXT_PUBLIC_*` 会在**构建时**打进前端包，改完后需要重新部署。
 

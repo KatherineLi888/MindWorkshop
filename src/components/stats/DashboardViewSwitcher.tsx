@@ -31,7 +31,7 @@ export function DashboardViewSwitcher({ store, disabled, onChange }: Props) {
   };
 
   return (
-    <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-[#E2E8F0] bg-white p-0.5">
+    <div className="inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl bg-slate-100/80 p-1">
       {store.views.map((view) => {
         const active = store.activeViewId === view.id;
         return (
@@ -41,10 +41,10 @@ export function DashboardViewSwitcher({ store, disabled, onChange }: Props) {
               disabled={disabled}
               onClick={() => onChange({ ...store, activeViewId: view.id })}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition",
+                "rounded-lg px-3.5 py-1.5 text-xs font-medium transition",
                 active
-                  ? "bg-slate-700 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50",
+                  ? "bg-white text-[var(--primary)] shadow-sm"
+                  : "text-slate-500 hover:text-slate-700",
                 disabled && "opacity-60"
               )}
             >
@@ -54,7 +54,7 @@ export function DashboardViewSwitcher({ store, disabled, onChange }: Props) {
               <button
                 type="button"
                 onClick={() => removeView(view)}
-                className="ml-0.5 rounded px-1 text-[10px] text-slate-300 hover:bg-red-50 hover:text-red-500"
+                className="ml-0.5 rounded-md px-1 text-[10px] text-slate-300 hover:text-red-500"
                 title="删除视图"
               >
                 ×

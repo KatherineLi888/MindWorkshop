@@ -211,11 +211,13 @@ export function insertInstanceAt(
 export function gridItemStyle(
   row: number,
   col: number,
-  size: WidgetSize
+  size: WidgetSize,
+  collapsed = false
 ): { gridColumn: string; gridRow: string } {
   const { colSpan, rowSpan } = sizeToSpan(size);
+  const effectiveRowSpan = collapsed ? 1 : rowSpan;
   return {
     gridColumn: `${col + 1} / span ${colSpan}`,
-    gridRow: `${row + 1} / span ${rowSpan}`,
+    gridRow: `${row + 1} / span ${effectiveRowSpan}`,
   };
 }

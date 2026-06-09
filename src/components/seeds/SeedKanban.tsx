@@ -10,6 +10,7 @@ import {
   type SeedColumnFilterState,
 } from "@/lib/seeds/origin";
 import type { IdeaSeed, SeedPhase } from "@/lib/seeds/types";
+import { withSeedsReturn } from "@/lib/navigation/return-to";
 import { cn } from "@/lib/utils";
 
 const COLUMNS: SeedPhase[] = ["sprouting", "growing", "archived"];
@@ -103,7 +104,7 @@ export function SeedKanban({ seeds, focus = "all" }: Props) {
           </ul>
           {phase === "archived" && parts.archived.length > 0 && (
             <a
-              href="/archive?tab=seeds"
+              href={withSeedsReturn("/archive?tab=seeds")}
               className="mt-2 block text-center text-[10px] text-[#1D4ED8] hover:underline"
             >
               在总归档箱查看全部 →

@@ -7,10 +7,16 @@ import { DashboardEditBar } from "@/components/stats/DashboardEditBar";
 import { DashboardActiveGoals } from "@/components/stats/DashboardActiveGoals";
 import { DashboardFunnelPanel } from "@/components/stats/DashboardFunnelPanel";
 import { DashboardGrid } from "@/components/stats/DashboardGrid";
-import { DashboardKpiRow } from "@/components/stats/DashboardKpiRow";
+import {
+  DashboardPeriodBrief,
+  periodOverviewSummary,
+} from "@/components/stats/DashboardPeriodBrief";
+import { DashboardQuickActions } from "@/components/stats/DashboardQuickActions";
+import { DashboardSection } from "@/components/stats/DashboardSection";
 import { DashboardTodayFeed } from "@/components/stats/DashboardTodayFeed";
 import { DashboardViewSwitcher } from "@/components/stats/DashboardViewSwitcher";
 import { WidgetComposer } from "@/components/stats/WidgetComposer";
+import { MODULE_INTRO } from "@/lib/module-copy";
 import { loadDashboardStats, type DashboardStats } from "@/lib/stats/aggregate";
 import {
   cloneLayout,
@@ -61,7 +67,16 @@ export function StatsDashboard() {
 
   const viewScope = useMemo(() => viewTimeScope(activeView), [activeView]);
   const isDayLayout = activeView.timePreset === "today";
+  const isWeekLayout = activeView.id === "week";
+  const isMonthLayout = activeView.id === "month";
   const showFunnel = !isDayLayout;
+  const quickPreset = isDayLayout
+    ? "today"
+    : isWeekLayout
+      ? "week"
+      : isMonthLayout
+        ? "month"
+        : "month";
 
   const displayLayout = editing && draftLayout ? draftLayout : savedLayout;
   const placedInstances = useMemo(
@@ -194,14 +209,17 @@ export function StatsDashboard() {
 
   return (
     <div
-      className={`mx-auto max-w-7xl space-y-4 bg-[#F8FAFC] p-4 lg:space-y-5 lg:p-6 ${editing ? "pb-36 md:pb-28" : ""}`}
+      className={`mx-auto max-w-7xl space-y-4 p-4 lg:p-6 ${editing ? "pb-36 md:pb-28" : ""}`}
       onContextMenu={handleContextMenu}
       onClick={() => setContextMenu(null)}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-lg font-semibold tracking-tight text-slate-800">
-          统计仪表盘
-        </h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+            统计
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">{MODULE_INTRO.stats}</p>
+        </div>
         <DashboardViewSwitcher
           store={viewsStore}
           disabled={editing}
@@ -209,46 +227,102 @@ export function StatsDashboard() {
         />
       </div>
 
-      <DashboardKpiRow stats={stats} />
-
-      <div className="border-t border-[#EEF1F5] pt-4" />
+      {isDayLayout && (
+        <DashboardSection
+          sectionId="section-active-goals"
+          title="今日重点"
+          subtitle="点击展开 KR · 长按进入复盘"
+          compact
+        >
+          <div className="p-4 sm:p-5">
+            <DashboardActiveGoals goals={stats.raw.goals} />
+          </div>
+        </DashboardSection>
+      )}
 
       {isDayLayout && (
-        <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
-          <DashboardActiveGoals goals={stats.raw.goals} />
-          <DashboardTodayFeed stats={stats} scope={viewScope} />
-        </div>
+        <DashboardSection sectionId="section-today-feed" title="今日动态" compact>
+          <div className="p-3">
+            <DashboardTodayFeed stats={stats} scope={viewScope} />
+          </div>
+        </DashboardSection>
+      )}
+
+      {isDayLayout && (
+        <DashboardQuickActions preset="today" />
       )}
 
       {showFunnel && (
-        <div className="space-y-5">
-          <DashboardFunnelPanel />
+        <div className="space-y-4">
+          {(isWeekLayout || isMonthLayout) && !editing && (
+            <DashboardSection
+              sectionId="section-period-overview"
+              title={isWeekLayout ? "本周概览" : "本月概览"}
+              subtitle="对比上周期产出与目标节奏"
+              collapsedSummary={periodOverviewSummary(
+                isWeekLayout ? "week" : "month",
+                stats
+              )}
+              compact
+            >
+              <DashboardPeriodBrief
+                preset={isWeekLayout ? "week" : "month"}
+                stats={stats}
+              />
+            </DashboardSection>
+          )}
+
+          <DashboardSection sectionId="section-funnel" title="流程漏斗" bare compact>
+            <DashboardFunnelPanel />
+          </DashboardSection>
 
           {placedInstances.length === 0 && !editing ? (
-            <div
-              className="rounded-xl border border-dashed border-[#E2E8F0] bg-white py-12 text-center"
-              onContextMenu={handleContextMenu}
+            <DashboardSection
+              sectionId="section-widgets-empty"
+              title="数据组件"
+              subtitle="右键可编辑当前视图或新增组件"
+              compact
             >
-              <p className="text-sm text-slate-500">
-                右键可编辑当前视图或新增视图标签
-              </p>
-            </div>
+              <div
+                className="py-10 text-center"
+                onContextMenu={handleContextMenu}
+              >
+                <p className="text-sm text-slate-500">
+                  暂无组件，右键可编辑当前视图
+                </p>
+              </div>
+            </DashboardSection>
           ) : (
-            <DashboardGrid
-              instances={placedInstances}
-              stats={stats}
-              editing={editing}
-              viewScope={viewScope}
-              onAddAt={openAddWidget}
-              onEdit={openEdit}
-              onRemove={removeInstance}
-              onEnterEditMode={startEdit}
-              onMove={(instances) => {
-                setDraftLayout({ instances });
-                if (!editing) setEditing(true);
-              }}
-            />
+            <DashboardSection
+              sectionId="section-widgets"
+              title="数据组件"
+              subtitle={
+                editing
+                  ? "右键编辑 · 长按拖动"
+                  : `${placedInstances.length} 个组件，点击标题可收起`
+              }
+              collapsedSummary={`${placedInstances.length} 个组件`}
+              compact
+              bare
+            >
+              <DashboardGrid
+                instances={placedInstances}
+                stats={stats}
+                editing={editing}
+                viewScope={viewScope}
+                onAddAt={openAddWidget}
+                onEdit={openEdit}
+                onRemove={removeInstance}
+                onEnterEditMode={startEdit}
+                onMove={(instances) => {
+                  setDraftLayout({ instances });
+                  if (!editing) setEditing(true);
+                }}
+              />
+            </DashboardSection>
           )}
+
+          <DashboardQuickActions preset={quickPreset} />
         </div>
       )}
 

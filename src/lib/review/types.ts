@@ -1,6 +1,13 @@
-export type ReviewKind = "period" | "goal" | "event";
+export type ReviewKind = "period" | "goal" | "event" | "decision";
 
-export type PeriodPreset = "day" | "week" | "month" | "custom";
+export type PeriodPreset =
+  | "day"
+  | "week"
+  | "month"
+  | "quarter"
+  | "half_year"
+  | "year"
+  | "custom";
 
 export type ReviewHighlight = {
   id: string;
@@ -22,7 +29,15 @@ export type ReviewRecord = {
   goalTitle?: string;
   krId?: string;
   krLabel?: string;
+  decisionId?: string;
+  decisionTitle?: string;
   eventNote?: string;
+  /** 决策复盘：亮点 / 不足 / 总结 */
+  decisionHighlights?: string;
+  decisionGaps?: string;
+  decisionSummary?: string;
+  /** 用户选择的统计板块 key */
+  selectedStatKeys?: string[];
   highlights: ReviewHighlight[];
   summary: string;
   createdAt: string;

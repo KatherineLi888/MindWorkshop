@@ -33,7 +33,7 @@ export function SeedTimelineViews({ seed, returnTo }: Props) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-800">阶段与时间线</h2>
+        <h2 className="text-sm font-semibold text-slate-800">流转梳理汇总</h2>
         <div className="flex rounded-lg border border-[#E2E8F0] p-0.5 text-[10px]">
           <button
             type="button"
@@ -63,8 +63,8 @@ export function SeedTimelineViews({ seed, returnTo }: Props) {
       </div>
       <p className="mt-0.5 text-[10px] text-slate-400">
         {mode === "summary"
-          ? "核心节点与关键选择"
-          : "完整思考链路与问答记录"}
+          ? "按流转顺序：思考结论、决策过程、目标拆解等关键行为与产出"
+          : "各环节核心内容与阶段性总结"}
       </p>
 
       <ul className="mt-4 space-y-0">
@@ -103,7 +103,6 @@ function TimelineEvent({
   >([]);
 
   useEffect(() => {
-    if (mode !== "full") return;
     let alive = true;
     void loadEntityFullContent(ev).then((blocks) => {
       if (alive) setFullBlocks(blocks);
@@ -111,7 +110,12 @@ function TimelineEvent({
     return () => {
       alive = false;
     };
-  }, [mode, ev.id, ev.entityId, ev.entityType]);
+  }, [ev.id, ev.entityId, ev.entityType]);
+
+  const previewLines = fullBlocks
+    .flatMap((b) => b.lines)
+    .filter(Boolean)
+    .slice(0, mode === "summary" ? 2 : 20);
 
   return (
     <li className="relative flex gap-4 pb-6">
@@ -143,35 +147,40 @@ function TimelineEvent({
           </span>
         </div>
 
-        {mode === "summary" ? (
-          <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            {summary}
-          </p>
-        ) : (
-          <div className="mt-2 space-y-2">
-            <p className="text-xs text-slate-500">{summary}</p>
-            {fullBlocks.map((block) => (
-              <div
-                key={block.heading}
-                className="rounded-lg bg-[#F8FAFC] px-2.5 py-2"
+        <p className="mt-1 text-xs leading-relaxed text-slate-600">{summary}</p>
+        {previewLines.length > 0 && (
+          <ul className="mt-2 space-y-1 rounded-lg bg-[#F8FAFC] px-2.5 py-2">
+            {previewLines.map((line, li) => (
+              <li
+                key={li}
+                className="text-[11px] leading-relaxed text-slate-700"
               >
-                <p className="text-[10px] font-medium text-slate-500">
-                  {block.heading}
-                </p>
-                <ul className="mt-1 space-y-1">
-                  {block.lines.map((line, li) => (
-                    <li
-                      key={li}
-                      className="text-[11px] leading-relaxed text-slate-700"
-                    >
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                {line}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
+        {mode === "full" &&
+          fullBlocks.map((block) => (
+            <div
+              key={block.heading}
+              className="mt-2 rounded-lg bg-[#F8FAFC] px-2.5 py-2"
+            >
+              <p className="text-[10px] font-medium text-slate-500">
+                {block.heading}
+              </p>
+              <ul className="mt-1 space-y-1">
+                {block.lines.map((line, li) => (
+                  <li
+                    key={li}
+                    className="text-[11px] leading-relaxed text-slate-700"
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
         {href && (
           <Link

@@ -17,7 +17,7 @@ const FIELDS: { key: keyof SmartFields; label: string; hint: string }[] = [
 type Props = {
   title: string;
   goalType: "near" | "long";
-  onComplete: (smart: SmartFields, versions: SmartFields[]) => void;
+  onComplete: (smart: SmartFields, versions: SmartFields[]) => void | Promise<void>;
   onCancel: () => void;
 };
 
@@ -31,7 +31,8 @@ export function SmartWizard({ title, goalType, onComplete, onCancel }: Props) {
     timeBound: "",
   });
   const [showReview, setShowReview] = useState(false);
-  const [versions, setVersions] = useState<SmartFields[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const field = FIELDS[step];
 
@@ -40,14 +41,25 @@ export function SmartWizard({ title, goalType, onComplete, onCancel }: Props) {
     else setShowReview(true);
   };
 
-  const confirmReview = () => {
-    setVersions((v) => [...v, { ...smart }]);
-    onComplete(smart, [...versions, smart]);
+  const confirmReview = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const snapshot = { ...smart };
+      await onComplete(snapshot, [snapshot]);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "保存失败，请检查登录状态后重试"
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (showReview) {
     return (
-      <Card className="mx-auto max-w-lg bg-white">
+      <Card className="mx-auto max-w-lg bg-white pb-2">
         <h3 className="font-medium">检查 SMART</h3>
         <p className="mt-2 text-sm text-slate-600">
           请再次审视：S 是否足够具体？M 是否真的可测量？A 是否现实？R 是否与长期方向一致？T
@@ -67,11 +79,24 @@ export function SmartWizard({ title, goalType, onComplete, onCancel }: Props) {
             </div>
           ))}
         </div>
-        <div className="mt-4 flex gap-2">
-          <Button variant="primary" onClick={confirmReview}>
-            确认并创建目标
+        {error && (
+          <p className="mt-3 text-xs text-red-600">{error}</p>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            disabled={saving}
+            onClick={() => void confirmReview()}
+          >
+            {saving ? "保存中…" : "确认并创建目标"}
           </Button>
-          <Button variant="ghost" onClick={() => setShowReview(false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => setShowReview(false)}
+          >
             返回修改
           </Button>
         </div>
@@ -80,7 +105,7 @@ export function SmartWizard({ title, goalType, onComplete, onCancel }: Props) {
   }
 
   return (
-    <Card className="mx-auto max-w-lg bg-white">
+    <Card className="mx-auto max-w-lg bg-white pb-2">
       <p className="text-xs text-slate-400">
         {goalType === "near" ? "短期目标" : "长期目标"} · {title}
       </p>
@@ -97,22 +122,27 @@ export function SmartWizard({ title, goalType, onComplete, onCancel }: Props) {
           setSmart((s) => ({ ...s, [field.key]: e.target.value }))
         }
       />
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {step > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => setStep((s) => s - 1)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setStep((s) => s - 1)}
+          >
             上一步
           </Button>
         )}
         <Button
+          type="button"
           variant="primary"
           size="sm"
           className="ml-auto"
-          disabled={!smart[field.key].trim()}
           onClick={next}
         >
           {step < FIELDS.length - 1 ? "下一步" : "检查 SMART"}
         </Button>
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           取消
         </Button>
       </div>

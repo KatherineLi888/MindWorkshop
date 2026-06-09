@@ -92,6 +92,52 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
+function isTableRow(line: string): boolean {
+  const t = line.trim();
+  return t.startsWith("|") && t.endsWith("|") && t.length > 2;
+}
+
+function isTableSeparator(line: string): boolean {
+  const t = line.trim();
+  return /^\|?[\s|:-]+\|?$/.test(t) && t.includes("-");
+}
+
+function parseTableCells(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((c) => c.trim());
+}
+
+function renderTable(headerLine: string, bodyLines: string[]): string {
+  const headers = parseTableCells(headerLine);
+  const colCount = headers.length;
+  const rows = bodyLines.map(parseTableCells);
+
+  const th = headers
+    .map(
+      (h) =>
+        `<th class="border border-slate-200 bg-slate-50 px-2 py-1.5 font-medium text-slate-700">${inlineFormat(escapeHtml(h))}</th>`
+    )
+    .join("");
+
+  const trs = rows
+    .map((row) => {
+      const cells = Array.from({ length: colCount }, (_, i) => row[i] ?? "");
+      return `<tr>${cells
+        .map(
+          (c) =>
+            `<td class="border border-slate-200 px-2 py-1.5 text-slate-600">${inlineFormat(escapeHtml(c))}</td>`
+        )
+        .join("")}</tr>`;
+    })
+    .join("");
+
+  return `<div class="my-2 -mx-1 overflow-x-auto"><table class="w-full min-w-[12rem] border-collapse text-left text-[inherit]"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></div>`;
+}
+
 function markdownToHtml(md: string): string {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
   const out: string[] = [];
@@ -106,7 +152,26 @@ function markdownToHtml(md: string): string {
     }
   };
 
-  for (const line of lines) {
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li]!;
+
+    if (
+      isTableRow(line) &&
+      li + 1 < lines.length &&
+      isTableSeparator(lines[li + 1]!)
+    ) {
+      flushList();
+      const header = line;
+      const body: string[] = [];
+      li += 2;
+      while (li < lines.length && isTableRow(lines[li]!) && !isTableSeparator(lines[li]!)) {
+        body.push(lines[li]!);
+        li++;
+      }
+      li--;
+      out.push(renderTable(header, body));
+      continue;
+    }
     if (line.trimStart().startsWith("```")) {
       flushList();
       if (!inCode) {

@@ -12,6 +12,7 @@ import {
 } from "@/components/track/TrackProblemWizardDialog";
 import { createClient, isCloudEnabled } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MODULE_INTRO } from "@/lib/module-copy";
 import { Button } from "@/components/ui/button";
 import { ExportExcelButton } from "@/components/shared/ExportExcelButton";
 import { OriginFlashPanel } from "@/components/shared/OriginFlashPanel";
@@ -65,7 +66,9 @@ export function GraphClient() {
     const fromGoal = searchParams.get("fromGoal");
     const fromKr = searchParams.get("fromKr");
     const fromDecision = searchParams.get("fromDecision");
-    if (fromGoal || fromKr || fromDecision) {
+    if (searchParams.get("new") === "1") {
+      setWizardOpen(true);
+    } else if (fromGoal || fromKr || fromDecision) {
       setWizardPreset({
         anchorType: fromKr
           ? "goal_kr"
@@ -134,7 +137,7 @@ export function GraphClient() {
     <div className="mx-auto max-w-3xl space-y-4 p-4 lg:max-w-4xl lg:p-6">
       <PageHeader
         title="问题追踪"
-        description="以列表收纳问题记录；支持锚定目标或决策，可仅本地归档或发起流程流转。"
+        description={MODULE_INTRO.graph}
         actions={
           <div className="flex items-center gap-2">
             <ExportExcelButton

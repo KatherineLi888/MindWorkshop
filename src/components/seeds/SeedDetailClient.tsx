@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { BackNavButton } from "@/components/layout/BackNavButton";
+import { useSearchParams } from "next/navigation";
 import { PHASE_ICONS } from "@/lib/seeds/overview-stats";
 import { seedOriginLabel } from "@/lib/seeds/origin";
 import { SeedTimelineViews } from "@/components/seeds/SeedTimelineViews";
@@ -11,37 +10,21 @@ import { Card } from "@/components/ui/card";
 import {
   seedBoardMeta,
   SEED_PHASE_LABELS,
-  distinctStages,
   isGoalPlanSeed,
   GOAL_PLAN_SEED_MARKER,
 } from "@/lib/seeds/classify";
 import { loadEntityBirthContent } from "@/lib/seeds/entity-content";
 import { birthEvent, birthLocationFull } from "@/lib/seeds/origin";
 import { seedDisplayTitle } from "@/lib/seeds/naming";
-import { seedStageLabel } from "@/lib/seeds/labels";
 import type { IdeaSeed } from "@/lib/seeds/types";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { parseReturnTo, SEEDS_HOME } from "@/lib/navigation/return-to";
 
-const STAGE_DOT: Record<string, string> = {
-  inbox: "bg-slate-400",
-  thinking: "bg-violet-500",
-  decisions: "bg-blue-500",
-  goals: "bg-emerald-500",
-  track: "bg-amber-500",
-  review: "bg-cyan-500",
-  home: "bg-rose-400",
-  model: "bg-fuchsia-500",
-  theory: "bg-violet-400",
-  canvas: "bg-teal-500",
-};
-
-export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
-  const params = useParams();
-  const id = typeof params.id === "string" ? params.id : seed.id;
-  const returnTo = `/seeds/${id}`;
+function SeedDetailInner({ seed }: { seed: IdeaSeed }) {
+  const searchParams = useSearchParams();
+  const returnTo = parseReturnTo(searchParams) ?? SEEDS_HOME;
   const meta = seedBoardMeta(seed);
-  const stages = distinctStages(seed);
   const goalPlan = isGoalPlanSeed(seed);
   const born = birthEvent(seed);
   const [birthContent, setBirthContent] = useState("");
@@ -60,9 +43,8 @@ export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
   return (
     <div className="space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center gap-2">
-        <BackNavButton />
         <Link
-          href="/seeds"
+          href={SEEDS_HOME}
           className="text-xs text-slate-500 hover:text-slate-700 hover:underline"
         >
           种子看板
@@ -126,26 +108,6 @@ export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
           </div>
         )}
 
-        {stages.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {stages.map((st, i) => (
-              <span
-                key={st}
-                className="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[10px] text-slate-600 ring-1 ring-[#EEF1F5]"
-              >
-                {i > 0 && <span className="text-slate-300">→</span>}
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    STAGE_DOT[st] ?? "bg-slate-300"
-                  )}
-                />
-                {seedStageLabel(st)}
-              </span>
-            ))}
-          </div>
-        )}
-
         {seed.status === "ended" && seed.endReason && (
           <p className="mt-3 text-xs text-slate-500">
             归档原因：{seed.endReason}
@@ -157,5 +119,13 @@ export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
         <SeedTimelineViews seed={seed} returnTo={returnTo} />
       </Card>
     </div>
+  );
+}
+
+export function SeedDetailClient({ seed }: { seed: IdeaSeed }) {
+  return (
+    <Suspense fallback={null}>
+      <SeedDetailInner seed={seed} />
+    </Suspense>
   );
 }
