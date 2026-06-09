@@ -8,7 +8,19 @@ update public.goals set type = goal_type where type is null and goal_type is not
 update public.goals set goal_type = coalesce(nullif(goal_type, ''), nullif(type, ''), 'pending');
 update public.goals set type = goal_type;
 
+-- 旧库可能有 target / short 等值，统一映射到应用支持的三种
+update public.goals
+set goal_type = case
+  when goal_type in ('near', 'short', 'target') then 'near'
+  when goal_type in ('long') then 'long'
+  else 'pending'
+end
+where goal_type is null or goal_type not in ('near', 'long', 'pending');
+
+update public.goals set type = goal_type;
+
 alter table public.goals drop constraint if exists goals_goal_type_check;
+alter table public.goals drop constraint if exists goals_type_check;
 alter table public.goals add constraint goals_goal_type_check
   check (goal_type in ('near', 'long', 'pending'));
 
