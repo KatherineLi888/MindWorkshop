@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { HeaderAddButton } from "@/components/layout/HeaderAddButton";
@@ -76,6 +76,9 @@ export function DecisionsClient({
   const [trackWizardOpen, setTrackWizardOpen] = useState(false);
   const [trackPreset, setTrackPreset] = useState<TrackWizardPreset>({});
   const [flowDraftId, setFlowDraftId] = useState(() => crypto.randomUUID());
+  const [flowResumeAnswers, setFlowResumeAnswers] = useState<
+    FlowAnswers | undefined
+  >();
   const searchParams = useSearchParams();
   const triageId = searchParams.get("triage");
 
@@ -118,6 +121,23 @@ export function DecisionsClient({
     }
   }, [searchParams]);
 
+  const resumedDraftRef = useRef(false);
+  useEffect(() => {
+    if (resumedDraftRef.current || searchParams.get("new") === "1") return;
+    const draft = list
+      .filter((d) => d.flow_confirmed === false && d.title.trim())
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      )[0];
+    if (!draft) return;
+    resumedDraftRef.current = true;
+    setFlowDraftId(draft.id);
+    setTitle(draft.title);
+    setFlowResumeAnswers((draft.flow_state ?? {}) as FlowAnswers);
+    setMode("flow");
+  }, [list, searchParams]);
+
   const pool = useMemo(
     () =>
       list.filter((d) => {
@@ -148,6 +168,7 @@ export function DecisionsClient({
   const startFlow = () => {
     if (!title.trim()) return;
     setFlowDraftId(crypto.randomUUID());
+    setFlowResumeAnswers(undefined);
     setMode("flow");
   };
 
@@ -268,6 +289,7 @@ export function DecisionsClient({
       <div className="flex h-[calc(100dvh-5rem)] min-h-0 flex-col p-4 lg:h-[calc(100dvh-2rem)] lg:p-6">
         <DecisionFlow
           title={title}
+          initialAnswers={flowResumeAnswers}
           onComplete={saveDecision}
           onAutosave={autosaveFlowDraft}
           onCancel={() => setMode("new")}

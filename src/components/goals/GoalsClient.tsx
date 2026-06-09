@@ -67,6 +67,7 @@ import {
 
 } from "@/lib/goals/storage";
 
+import { clearDraft, DRAFT_KEYS, loadDraft, saveDraft } from "@/lib/drafts/storage";
 import { createClient, isCloudEnabled } from "@/lib/supabase/client";
 
 import { GoalsTaskViews } from "@/components/goals/GoalsTaskViews";
@@ -336,7 +337,25 @@ export function GoalsClient() {
 
   }, [searchParams, goals]);
 
+  useEffect(() => {
+    const shell = loadDraft<{
+      wizard: { title: string; type: "near" | "long" } | null;
+      newTitle: string;
+      showNewDialog: boolean;
+    }>(DRAFT_KEYS.goalShell);
+    if (!shell) return;
+    if (shell.wizard) setWizard(shell.wizard);
+    if (shell.newTitle) setNewTitle(shell.newTitle);
+    if (shell.showNewDialog) setShowNewDialog(shell.showNewDialog);
+  }, []);
 
+  useEffect(() => {
+    if (wizard || newTitle.trim() || showNewDialog) {
+      saveDraft(DRAFT_KEYS.goalShell, { wizard, newTitle, showNewDialog });
+    } else {
+      clearDraft(DRAFT_KEYS.goalShell);
+    }
+  }, [wizard, newTitle, showNewDialog]);
 
   const createPendingGoal = async () => {
 
@@ -581,7 +600,7 @@ export function GoalsClient() {
     const savedId = await persistNewGoal(row);
 
     if (!savedId) {
-      throw new Error("保存失败：请确认已登录（云端模式）或稍后重试");
+      throw new Error("保存失败，请刷新页面后重试");
     }
 
     registerFlowEntry("goal", savedId, "goals");
@@ -606,6 +625,8 @@ export function GoalsClient() {
 
     }
 
+    clearDraft(DRAFT_KEYS.goalShell);
+    clearDraft(DRAFT_KEYS.goalSmart);
     setWizard(null);
 
     setNewTitle("");
@@ -666,7 +687,10 @@ export function GoalsClient() {
 
           onComplete={onSmartDone}
 
-          onCancel={() => setWizard(null)}
+          onCancel={() => {
+            clearDraft(DRAFT_KEYS.goalShell);
+            setWizard(null);
+          }}
 
         />
 

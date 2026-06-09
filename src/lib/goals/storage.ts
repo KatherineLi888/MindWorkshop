@@ -1,6 +1,7 @@
 import { loadLocal, saveLocal, LOCAL_KEYS } from "@/lib/local-store";
 import { ensureEntityHasSeed } from "@/lib/seeds/ensure";
 import { createClient, isCloudEnabled } from "@/lib/supabase/client";
+import { requireCloudUserId } from "@/lib/supabase/auth-user";
 import {
   DEFAULT_GOAL_EXECUTION,
   normalizeExecution,
@@ -175,37 +176,43 @@ export async function persistNewGoal(
     return goal.id;
   }
 
+  const userId = await requireCloudUserId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const now = goal.updated_at ?? new Date().toISOString();
 
   const { data: inserted, error } = await supabase
     .from("goals")
     .upsert({
       id: goal.id,
-      user_id: user.id,
+      user_id: userId,
       title: goal.title,
       goal_type: goal.goal_type,
-      smart_current: goal.smart_current,
-      progress: goal.progress ?? 0,
+      smart_current: goal.smart_current ?? {},
+      progress: Number(goal.progress ?? 0),
       execution: normalizeExecution(goal.execution),
-      updated_at: goal.updated_at ?? new Date().toISOString(),
+      created_at: goal.created_at ?? now,
+      updated_at: now,
     })
     .select("id")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(error.message || "目标保存到云端失败");
+  }
 
   const goalId = inserted?.id ?? goal.id;
   const versions = goal.smart_versions ?? [goal.smart_current];
   for (const v of versions) {
-    await supabase.from("goal_smart_versions").insert({
-      goal_id: goalId,
-      user_id: user.id,
-      smart_data: v,
-    });
+    const { error: verErr } = await supabase
+      .from("goal_smart_versions")
+      .insert({
+        goal_id: goalId,
+        user_id: userId,
+        smart_data: v,
+      });
+    if (verErr) {
+      throw new Error(verErr.message || "SMART 版本保存失败");
+    }
   }
 
   ensureEntityHasSeed({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -31,7 +31,7 @@ import type {
   ReviewHighlight,
   ReviewKind,
 } from "@/lib/review/types";
-import { Suspense } from "react";
+import { clearDraft, DRAFT_KEYS, loadDraft, saveDraft } from "@/lib/drafts/storage";
 
 const KIND_LABELS: Record<ReviewKind, string> = {
   period: "周期复盘",
@@ -82,6 +82,95 @@ function ReviewNewContent() {
     []
   );
   const [editingId, setEditingId] = useState<string | null>(null);
+  const draftRestored = useRef(false);
+
+  useEffect(() => {
+    if (editId || draftRestored.current) return;
+    const hasQuery =
+      searchParams.get("kind") ||
+      searchParams.get("goalId") ||
+      searchParams.get("edit");
+    if (hasQuery) return;
+    const draft = loadDraft<{
+      kind: ReviewKind | null;
+      periodPreset: PeriodPreset;
+      customStart: string;
+      customEnd: string;
+      goalId: string;
+      krId: string;
+      krLabel: string;
+      decisionId: string;
+      eventNote: string;
+      title: string;
+      summary: string;
+      decisionHighlights: string;
+      decisionGaps: string;
+      decisionSummary: string;
+      selectedStatKeys: string[];
+      highlights: ReviewHighlight[];
+    }>(DRAFT_KEYS.reviewNew);
+    if (!draft) return;
+    draftRestored.current = true;
+    if (draft.kind) setKind(draft.kind);
+    setPeriodPreset(draft.periodPreset);
+    setCustomStart(draft.customStart);
+    setCustomEnd(draft.customEnd);
+    setGoalId(draft.goalId);
+    setKrId(draft.krId);
+    setKrLabel(draft.krLabel);
+    setDecisionId(draft.decisionId);
+    setEventNote(draft.eventNote);
+    setTitle(draft.title);
+    setSummary(draft.summary);
+    setDecisionHighlights(draft.decisionHighlights);
+    setDecisionGaps(draft.decisionGaps);
+    setDecisionSummary(draft.decisionSummary);
+    if (draft.selectedStatKeys?.length) {
+      setSelectedStatKeys(new Set(draft.selectedStatKeys));
+    }
+    setHighlights(draft.highlights ?? []);
+  }, [editId, searchParams]);
+
+  useEffect(() => {
+    if (editId) return;
+    if (!kind && !title && !summary) return;
+    saveDraft(DRAFT_KEYS.reviewNew, {
+      kind,
+      periodPreset,
+      customStart,
+      customEnd,
+      goalId,
+      krId,
+      krLabel,
+      decisionId,
+      eventNote,
+      title,
+      summary,
+      decisionHighlights,
+      decisionGaps,
+      decisionSummary,
+      selectedStatKeys: [...selectedStatKeys],
+      highlights,
+    });
+  }, [
+    editId,
+    kind,
+    periodPreset,
+    customStart,
+    customEnd,
+    goalId,
+    krId,
+    krLabel,
+    decisionId,
+    eventNote,
+    title,
+    summary,
+    decisionHighlights,
+    decisionGaps,
+    decisionSummary,
+    selectedStatKeys,
+    highlights,
+  ]);
 
   useEffect(() => {
     loadAllGoals().then((list) =>
@@ -282,6 +371,7 @@ function ReviewNewContent() {
       updateReviewRecord(editingId, payload);
     } else {
       createReviewRecord(payload);
+      clearDraft(DRAFT_KEYS.reviewNew);
     }
 
     router.push("/review");

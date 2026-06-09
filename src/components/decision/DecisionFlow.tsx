@@ -20,6 +20,7 @@ import {
 
 type Props = {
   title: string;
+  initialAnswers?: FlowAnswers;
   onComplete: (payload: {
     answers: FlowAnswers;
     pathSummary: string;
@@ -39,12 +40,13 @@ const VALUE_CUSTOM_KEY: Record<string, string> = {
 
 export function DecisionFlow({
   title,
+  initialAnswers,
   onComplete,
   onCancel,
   onAutosave,
 }: Props) {
   const [history, setHistory] = useState<string[]>([initialStepId()]);
-  const [answers, setAnswers] = useState<FlowAnswers>({});
+  const [answers, setAnswers] = useState<FlowAnswers>(initialAnswers ?? {});
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingComplete, setPendingComplete] = useState<{
     answers: FlowAnswers;

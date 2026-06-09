@@ -3,13 +3,13 @@
 import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import { MarkdownContent } from "@/components/shared/MarkdownContent";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { applyAiMutations } from "@/lib/ai/client-mutations";
 import {
   normalizeAiProvider,
   type AiProvider,
 } from "@/lib/ai/provider";
 import type { AiMutation } from "@/lib/ai/tools";
+import { clearDraft, DRAFT_KEYS, loadDraft, saveDraft } from "@/lib/drafts/storage";
 import { AUTH_ENABLED } from "@/lib/config";
 import { loadLocal, LOCAL_KEYS } from "@/lib/local-store";
 import { loadReviewRecords } from "@/lib/review/storage";
@@ -24,16 +24,22 @@ type Message = {
 };
 
 export function AiChatClient() {
+  const restored = loadDraft<{ messages: Message[] }>(DRAFT_KEYS.aiChat);
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(restored?.messages ?? []);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    if (messages.length) {
+      saveDraft(DRAFT_KEYS.aiChat, { messages });
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages, loading]);
 
   const send = async () => {
@@ -102,38 +108,50 @@ export function AiChatClient() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-[#E2E8F0] bg-white px-4 py-3 lg:px-6">
-        <PageHeader
-          title="AI 助手"
-          description="查目标、读 KR、创建复盘与决策。请先确保设置页已配置 API Key。"
-          actions={
-            <Link
-              href="/settings"
-              className="rounded-lg border border-[#E2E8F0] px-2.5 py-1 text-xs text-slate-600 hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)]">
+      <header className="flex shrink-0 items-center justify-between border-b border-[#E2E8F0] bg-white px-4 py-3">
+        <div>
+          <h1 className="text-base font-semibold text-slate-900">AI 助手</h1>
+          <p className="text-[11px] text-slate-400">对话已自动保存</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              className="rounded-lg px-2 py-1 text-[11px] text-slate-500 hover:bg-slate-50"
+              onClick={() => {
+                setMessages([]);
+                clearDraft(DRAFT_KEYS.aiChat);
+              }}
             >
-              API 设置
-            </Link>
-          }
-        />
-      </div>
+              清空
+            </button>
+          )}
+          <Link
+            href="/settings"
+            className="rounded-lg border border-[#E2E8F0] px-2.5 py-1 text-xs text-slate-600 hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+          >
+            API 设置
+          </Link>
+        </div>
+      </header>
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 lg:px-6"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3"
       >
         {messages.length === 0 && (
-          <div className="rounded-xl border border-dashed border-[#E2E8F0] bg-white px-4 py-10 text-center">
+          <div className="rounded-xl border border-dashed border-[#E2E8F0] bg-white px-4 py-8 text-center">
             <p className="text-sm text-slate-500">开始对话</p>
             <p className="mt-2 text-xs text-slate-400">
-              例如：「进行中的目标有哪些」「子项是什么」「帮我创建目标复盘」
+              例如：「进行中的目标有哪些」「帮我创建目标复盘」
             </p>
           </div>
         )}
         {messages.map((msg, i) => (
           <div
             key={i}
-            className={`max-w-3xl rounded-xl px-4 py-3 ${
+            className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 sm:max-w-[85%] ${
               msg.role === "user"
                 ? "ml-auto bg-[#3B82F6] text-white"
                 : "mr-auto border border-[#EEF1F5] bg-white text-[#1E293B]"
@@ -155,15 +173,13 @@ export function AiChatClient() {
             ))}
           </div>
         ))}
-        {loading && (
-          <p className="text-xs text-slate-400">思考中…</p>
-        )}
+        {loading && <p className="text-xs text-slate-400">思考中…</p>}
       </div>
 
-      <div className="shrink-0 border-t border-[#E2E8F0] bg-white p-4 lg:px-6">
-        <div className="mx-auto flex max-w-3xl gap-2">
+      <footer className="shrink-0 border-t border-[#E2E8F0] bg-white px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-end gap-2">
           <Textarea
-            rows={2}
+            rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -172,20 +188,20 @@ export function AiChatClient() {
                 void send();
               }
             }}
-            placeholder="输入指令…（Enter 发送，Shift+Enter 换行）"
-            className="min-h-0 flex-1"
+            placeholder="输入消息…"
+            className="max-h-24 min-h-[2.5rem] flex-1 resize-none py-2"
           />
           <Button
             variant="primary"
             size="sm"
-            className="shrink-0 self-end"
+            className="mb-0.5 shrink-0"
             disabled={loading || !input.trim()}
             onClick={send}
           >
             发送
           </Button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
