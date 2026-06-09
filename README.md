@@ -36,7 +36,10 @@ supabase/migrations/004_decision_manual_fields.sql
 supabase/migrations/005_decision_notes.sql
 supabase/migrations/006_user_scoped_local_modules.sql
 supabase/migrations/007_ai_provider.sql
+supabase/migrations/008_goals_schema_repair.sql
 ```
+
+若创建目标报错 `Could not find the 'goal_type' column`，说明 goals 表不完整或 API 缓存过期：请执行 **008**，或按顺序补跑 **001–008**。
 
 ### 第三步：开启邮箱注册
 

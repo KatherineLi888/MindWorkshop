@@ -197,7 +197,13 @@ export async function persistNewGoal(
     .single();
 
   if (error) {
-    throw new Error(error.message || "目标保存到云端失败");
+    const msg = error.message || "目标保存到云端失败";
+    if (msg.includes("schema cache") || msg.includes("goal_type")) {
+      throw new Error(
+        `${msg}。请在 Supabase SQL Editor 执行 supabase/migrations/008_goals_schema_repair.sql 后重试。`
+      );
+    }
+    throw new Error(msg);
   }
 
   const goalId = inserted?.id ?? goal.id;
