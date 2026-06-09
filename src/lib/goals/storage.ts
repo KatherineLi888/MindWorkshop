@@ -198,9 +198,9 @@ export async function persistNewGoal(
 
   if (error) {
     const msg = error.message || "目标保存到云端失败";
-    if (msg.includes("schema cache") || msg.includes("goal_type")) {
+    if (msg.includes("schema cache") || msg.includes("goals")) {
       throw new Error(
-        `${msg}。请在 Supabase SQL Editor 执行 supabase/migrations/008_goals_schema_repair.sql 后重试。`
+        `${msg}。请在 Supabase SQL Editor 执行 009_goals_full_repair.sql（若仍失败再跑 001）后重试。`
       );
     }
     throw new Error(msg);
