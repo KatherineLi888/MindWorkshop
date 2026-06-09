@@ -1,6 +1,10 @@
 import { loadLocal, saveLocal, LOCAL_KEYS } from "@/lib/local-store";
 import { ensureEntityHasSeed } from "@/lib/seeds/ensure";
 import { createClient, isCloudEnabled } from "@/lib/supabase/client";
+import {
+  goalCloudWritePayload,
+  normalizeCloudGoalRow,
+} from "@/lib/goals/cloud-payload";
 import { requireCloudUserId } from "@/lib/supabase/auth-user";
 import {
   DEFAULT_GOAL_EXECUTION,
@@ -37,7 +41,9 @@ export async function loadAllGoals(): Promise<GoalWithMeta[]> {
     .from("goals")
     .select("*")
     .order("created_at", { ascending: false });
-  return ((data as GoalRow[]) ?? []).map(toGoalWithMeta);
+  return ((data as Record<string, unknown>[]) ?? []).map((row) =>
+    toGoalWithMeta(normalizeCloudGoalRow(row))
+  );
 }
 
 export async function loadGoalSmartVersions(
@@ -94,17 +100,8 @@ export async function saveGoal(goal: GoalWithMeta): Promise<GoalWithMeta[]> {
   }
 
   const supabase = createClient();
-  await supabase
-    .from("goals")
-    .update({
-      title: payload.title,
-      goal_type: payload.goal_type,
-      progress: payload.progress,
-      smart_current: payload.smart_current,
-      execution: payload.execution,
-      updated_at,
-    })
-    .eq("id", goal.id);
+  const write = goalCloudWritePayload({ ...payload, user_id: goal.user_id });
+  await supabase.from("goals").update(write).eq("id", goal.id);
 
   return loadAllGoals();
 }
@@ -180,30 +177,15 @@ export async function persistNewGoal(
   const supabase = createClient();
   const now = goal.updated_at ?? new Date().toISOString();
 
+  const write = goalCloudWritePayload({ ...goal, user_id: userId, updated_at: now });
   const { data: inserted, error } = await supabase
     .from("goals")
-    .upsert({
-      id: goal.id,
-      user_id: userId,
-      title: goal.title,
-      goal_type: goal.goal_type,
-      smart_current: goal.smart_current ?? {},
-      progress: Number(goal.progress ?? 0),
-      execution: normalizeExecution(goal.execution),
-      created_at: goal.created_at ?? now,
-      updated_at: now,
-    })
+    .upsert(write)
     .select("id")
     .single();
 
   if (error) {
-    const msg = error.message || "目标保存到云端失败";
-    if (msg.includes("schema cache") || msg.includes("goals")) {
-      throw new Error(
-        `${msg}。请在 Supabase SQL Editor 执行 009_goals_full_repair.sql（若仍失败再跑 001）后重试。`
-      );
-    }
-    throw new Error(msg);
+    throw new Error(error.message || "目标保存到云端失败");
   }
 
   const goalId = inserted?.id ?? goal.id;

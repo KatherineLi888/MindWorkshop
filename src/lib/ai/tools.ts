@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatGoalDetailText } from "@/lib/ai/goal-format";
+import { goalCloudWritePayload } from "@/lib/goals/cloud-payload";
 import type { ReviewKind, ReviewRecord } from "@/lib/review/types";
 import type { DecisionRow, GoalRow } from "@/types/database";
 
@@ -331,12 +332,19 @@ export async function executeAiTool(
     if (ctx.supabase && ctx.userId) {
       const { data, error } = await ctx.supabase
         .from("goals")
-        .insert({
-          user_id: ctx.userId,
-          title,
-          goal_type,
-          smart_current: {},
-        })
+        .insert(
+          goalCloudWritePayload({
+            id,
+            user_id: ctx.userId,
+            title,
+            goal_type,
+            progress: 0,
+            smart_current: {},
+            execution: undefined,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+        )
         .select("id")
         .single();
       if (error || !data) {
