@@ -111,6 +111,7 @@ export async function migrateLocalToCloud(
       title: g.title,
       name: g.title,
       goal_type: g.goal_type,
+      type: g.goal_type,
       progress: g.progress,
       smart_current: g.smart_current,
       execution: g.execution ?? {},

@@ -1,7 +1,14 @@
 import { normalizeExecution } from "@/lib/goals/types";
 import type { GoalRow } from "@/types/database";
 
-/** 线上 goals 表可能是 title 或 name 列，写入时两个都带上 */
+const GOAL_TYPES = new Set(["near", "long", "pending"]);
+
+function normalizeGoalType(raw: unknown): GoalRow["goal_type"] {
+  const v = String(raw ?? "pending");
+  return GOAL_TYPES.has(v) ? (v as GoalRow["goal_type"]) : "pending";
+}
+
+/** 线上 goals 表列名可能是旧版：name/title、type/goal_type，写入时全部带上 */
 export function goalCloudWritePayload(
   goal: Pick<
     GoalRow,
@@ -16,13 +23,15 @@ export function goalCloudWritePayload(
   > & { user_id?: string }
 ): Record<string, unknown> {
   const title = goal.title?.trim() || "未命名目标";
+  const goalType = normalizeGoalType(goal.goal_type);
   const now = goal.updated_at ?? new Date().toISOString();
   return {
     id: goal.id,
     user_id: goal.user_id,
     title,
     name: title,
-    goal_type: goal.goal_type,
+    goal_type: goalType,
+    type: goalType,
     smart_current: goal.smart_current ?? {},
     progress: Number(goal.progress ?? 0),
     execution: normalizeExecution(goal.execution),
@@ -33,8 +42,10 @@ export function goalCloudWritePayload(
 
 export function normalizeCloudGoalRow(raw: Record<string, unknown>): GoalRow {
   const title = String(raw.title ?? raw.name ?? "").trim() || "未命名目标";
+  const goal_type = normalizeGoalType(raw.goal_type ?? raw.type);
   return {
     ...(raw as unknown as GoalRow),
     title,
+    goal_type,
   };
 }
